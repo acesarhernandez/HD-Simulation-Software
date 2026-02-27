@@ -1,0 +1,3 @@
+full_name,department,zammad_login,role_type,needs_agent_access,notes
+Example User,Marketing,marketing.user@bmm.local,customer,no,End user only
+Example Tech,IT,it.analyst@bmm.local,agent+admin,yes,Solo technician account

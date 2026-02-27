@@ -1,0 +1,63 @@
+personas:
+  - id: hr_01
+    role: HR
+    full_name: Melissa Brooks
+    email: melissa.brooks@bmm.local
+    technical_level: low
+    tone: polite
+
+  - id: hr_02
+    role: HR
+    full_name: Jordan Patel
+    email: jordan.patel@bmm.local
+    technical_level: medium
+    tone: direct
+
+  - id: hr_03
+    role: HR
+    full_name: Emily Carter
+    email: emily.carter@bmm.local
+    technical_level: medium
+    tone: direct
+
+  - id: finance_01
+    role: Finance
+    full_name: Nina Alvarez
+    email: nina.alvarez@bmm.local
+    technical_level: low
+    tone: urgent
+
+  - id: finance_02
+    role: Finance
+    full_name: Austin Kim
+    email: austin.kim@bmm.local
+    technical_level: medium
+    tone: concise
+
+  - id: design_01
+    role: Design
+    full_name: Leah Morgan
+    email: leah.morgan@bmm.local
+    technical_level: medium
+    tone: friendly
+
+  - id: sales_01
+    role: Sales
+    full_name: Chris Grant
+    email: chris.grant@bmm.local
+    technical_level: low
+    tone: impatient
+
+  - id: ops_01
+    role: Operations
+    full_name: Ryan Cole
+    email: ryan.cole@bmm.local
+    technical_level: high
+    tone: technical
+
+  - id: engineering_01
+    role: Engineering
+    full_name: Samira Flores
+    email: samira.flores@bmm.local
+    technical_level: high
+    tone: analytical

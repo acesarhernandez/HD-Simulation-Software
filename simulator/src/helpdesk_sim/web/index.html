@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HelpDesk Simulator Console</title>
+    <script src="/ui/static/theme-sync.js"></script>
+    <link rel="stylesheet" href="/ui/static/styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-top"></div>
+    <div class="ambient ambient-bottom"></div>
+
+    <main class="shell">
+      <div class="theme-edge-dock">
+        <button
+          id="themeLauncher"
+          class="theme-launcher"
+          type="button"
+          title="Theme settings"
+          aria-label="Open theme settings"
+          aria-controls="themePanel"
+          aria-expanded="false"
+        >
+          ◐
+        </button>
+        <div id="themePanel" class="theme-panel" hidden>
+          <div class="theme-panel-title">Theme</div>
+          <div class="theme-options" role="group" aria-label="Theme mode">
+            <button type="button" class="theme-mode-btn" data-theme-mode="light" title="Light mode">
+              ☀ Light
+            </button>
+            <button type="button" class="theme-mode-btn" data-theme-mode="dark" title="Dark mode">
+              🌙 Dark
+            </button>
+            <button type="button" class="theme-mode-btn" data-theme-mode="auto" title="Auto mode">
+              ◐ Auto
+            </button>
+          </div>
+        </div>
+      </div>
+      <header class="hero reveal">
+        <div>
+          <p class="eyebrow">Operations Console</p>
+          <h1>HelpDesk Simulator</h1>
+          <p class="subtitle">
+            Run training shifts, trigger queue activity, request hints, and review score trends from one place.
+          </p>
+        </div>
+        <div class="status-wrap">
+          <label class="theme-toggle" for="showRawJson">
+            <span>Display</span>
+            <select id="showRawJson">
+              <option value="off">English</option>
+              <option value="on">English + Raw JSON</option>
+            </select>
+          </label>
+          <a href="/ui/guide" class="btn">Open Guide</a>
+          <span id="healthBadge" class="badge">Checking API...</span>
+        </div>
+      </header>
+
+      <section class="panel reveal" style="--delay: 0.08s">
+        <div class="panel-head">
+          <h2>Shift Control</h2>
+          <button id="refreshBtn" class="btn btn-ghost">Refresh Data</button>
+        </div>
+        <div class="ops-stack">
+          <div class="ops-block">
+            <h3>Shift Session</h3>
+            <div class="control-grid shift-grid">
+              <label class="field">
+                <span>Profile</span>
+                <select id="profileSelect"></select>
+              </label>
+              <button id="clockInBtn" class="btn btn-primary">Clock In</button>
+              <button id="clockOutAllBtn" class="btn btn-warn">Clock Out All</button>
+            </div>
+            <p class="mini-help">
+              Start or end one or more practice shifts.
+            </p>
+          </div>
+          <div class="ops-block">
+            <h3>Queue Automation</h3>
+            <div class="control-grid automation-grid">
+              <button id="schedulerBtn" class="btn">Run Scheduler</button>
+              <button id="pollerBtn" class="btn">Run Poller</button>
+            </div>
+            <p class="mini-help">
+              Scheduler creates due tickets for active shifts. Poller watches ticket conversations and posts simulated user replies.
+            </p>
+          </div>
+        </div>
+        <pre id="actionResult" class="log-box">Ready.</pre>
+      </section>
+
+      <section class="split reveal" style="--delay: 0.12s">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Day Profiles</h2>
+            <span class="meta">Collapsed by default</span>
+          </div>
+          <p class="mini-help">
+            Use the expander only when you want the full profile behavior breakdown.
+          </p>
+          <details class="profile-expander">
+            <summary>Show day profile explanations</summary>
+            <div id="profileDefinitionList" class="definition-list empty">Loading profiles...</div>
+          </details>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Manual Ticket Generator</h2>
+            <span class="meta">Create exactly what you want to practice</span>
+          </div>
+          <div class="manual-grid">
+            <label class="field">
+              <span>Target Active Shift</span>
+              <select id="manualSessionSelect"></select>
+            </label>
+            <label class="field">
+              <span>Tickets To Create Now</span>
+              <input id="manualCount" type="number" min="1" max="20" value="1" />
+            </label>
+            <label class="field">
+              <span>Tier</span>
+              <select id="manualTierSelect">
+                <option value="">Auto (weighted)</option>
+                <option value="tier1">Tier 1</option>
+                <option value="tier2">Tier 2</option>
+                <option value="sysadmin">SysAdmin</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Ticket Type</span>
+              <select id="manualTypeSelect">
+                <option value="">Auto (weighted)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Department</span>
+              <select id="manualDeptSelect">
+                <option value="">Auto (match scenario)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>End User Persona</span>
+              <select id="manualPersonaSelect">
+                <option value="">Auto (match filters)</option>
+              </select>
+            </label>
+            <label class="field field-span">
+              <span>Scenario (optional)</span>
+              <select id="manualScenarioSelect">
+                <option value="">Auto (match filters)</option>
+              </select>
+            </label>
+            <button id="manualAutofillBtn" class="btn">Auto Fill Random</button>
+            <button id="manualGenerateBtn" class="btn btn-primary">Generate Ticket(s)</button>
+          </div>
+          <p class="mini-help">
+            If "Target Active Shift" shows "No active sessions", clock in first. Persona labels include technical level:
+            low = non-technical, medium = mixed, high = technical. On ticket submit, matching department users in
+            Zammad are reused first.
+          </p>
+          <pre id="manualResult" class="log-box">No manual generation run yet.</pre>
+        </article>
+      </section>
+
+      <section class="split reveal" style="--delay: 0.16s">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Active Sessions</h2>
+            <div class="panel-actions">
+              <span id="sessionMeta" class="meta">0 active</span>
+              <button id="clockOutAllBtnSessions" class="btn btn-warn">Clock Out All</button>
+            </div>
+          </div>
+          <div id="sessionList" class="session-list empty">No active sessions yet.</div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Session Detail</h2>
+            <span id="selectedSession" class="meta">No session selected</span>
+          </div>
+          <div class="panel-actions" style="margin-bottom: 10px">
+            <button id="closeAllSessionTicketsBtn" class="btn">Close Open Tickets</button>
+            <button id="deleteAllSessionTicketsBtn" class="btn btn-danger">Delete All Tickets</button>
+          </div>
+          <label class="inline-check">
+            <input id="deleteFallbackClose" type="checkbox" checked />
+            If Zammad delete is blocked, close in Zammad and remove from simulator.
+          </label>
+          <div id="deleteStatusBanner" class="inline-alert" hidden></div>
+          <p class="mini-help">
+            Close/Delete actions here are simulator-side controls for practice cleanup.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Zammad</th>
+                  <th>Tier</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Subject</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ticketTableBody">
+                <tr>
+                  <td colspan="6" class="empty-cell">Select a session to view tickets.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <pre id="ticketInfoResult" class="log-box">Select a ticket to view details.</pre>
+        </article>
+      </section>
+
+      <section class="split reveal" style="--delay: 0.24s">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Hint Console</h2>
+          </div>
+          <div class="hint-grid">
+            <label class="field">
+              <span>Local Ticket ID</span>
+              <input id="hintTicketId" type="text" placeholder="Paste local ticket UUID" />
+            </label>
+            <label class="field">
+              <span>Hint Level</span>
+              <select id="hintLevel">
+                <option value="nudge">Nudge</option>
+                <option value="guided_step">Guided Step</option>
+                <option value="strong_hint">Strong Hint</option>
+              </select>
+            </label>
+            <button id="hintBtn" class="btn btn-warn">Request Hint</button>
+          </div>
+          <pre id="hintResult" class="log-box">No hint requested.</pre>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Reports</h2>
+          </div>
+          <div class="report-actions">
+            <button id="dailyReportBtn" class="btn">Daily Report</button>
+            <button id="weeklyReportBtn" class="btn">Weekly Report</button>
+          </div>
+          <pre id="reportResult" class="log-box">No report loaded.</pre>
+        </article>
+      </section>
+    </main>
+
+    <script src="/ui/static/app.js"></script>
+  </body>
+</html>

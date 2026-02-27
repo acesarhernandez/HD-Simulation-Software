@@ -1,0 +1,430 @@
+scenarios:
+  - id: t1_password_expired
+    title: "Cannot sign in to workstation"
+    ticket_type: password_reset
+    tier: tier1
+    priority: normal
+    tags: ["identity"]
+    persona_roles: ["HR", "Sales"]
+    knowledge_article_ids: [kb_password_reset_policy]
+    customer_problem: "I cannot sign in this morning. It says my password has expired even though I used the same one yesterday."
+    root_cause: "Password expired due to policy window and user did not complete reset."
+    expected_agent_checks:
+      - "confirm username"
+      - "check account lockout"
+      - "verify password expiration"
+    resolution_steps:
+      - "Unlock user account"
+      - "Force password reset"
+      - "Verify MFA enrollment"
+    acceptable_resolution_keywords:
+      - "reset password"
+      - "unlock"
+      - "password expired"
+    clue_map:
+      username: "My username is m.brooks"
+      error: "The exact message says your password has expired."
+      mfa: "I still get MFA prompts on my phone."
+    hint_bank:
+      nudge: "Start with account status and expiration date before changing group policy assumptions."
+      guided_step: "Check whether the account is both expired and locked."
+      strong_hint: "A password reset plus unlock is required in this case."
+    default_follow_up: "I can try steps while you stay on the ticket."
+
+  - id: t1_shared_mailbox_access
+    title: "New HR coordinator cannot open shared mailbox"
+    ticket_type: access_request
+    tier: tier1
+    priority: normal
+    tags: ["email", "access"]
+    persona_roles: ["HR"]
+    knowledge_article_ids: [kb_shared_mailbox_access]
+    customer_problem: "Our new coordinator can log in but cannot open the HR shared mailbox in Outlook."
+    root_cause: "Missing shared mailbox permission assignment in group membership."
+    expected_agent_checks:
+      - "verify account active"
+      - "check shared mailbox permissions"
+      - "confirm group membership"
+    resolution_steps:
+      - "Add user to mailbox access group"
+      - "Ask user to restart Outlook"
+    acceptable_resolution_keywords:
+      - "mailbox permission"
+      - "add to group"
+      - "restart outlook"
+    clue_map:
+      account: "She can log in to email and Teams, just not the shared mailbox."
+      permission: "I do not think anyone added her to the old distribution group yet."
+      restart: "She has not restarted Outlook yet."
+    hint_bank:
+      nudge: "Focus on delegated access, not global mailbox outage."
+      guided_step: "Validate the mailbox access group used by HR."
+      strong_hint: "Add user to the mailbox permission group and have Outlook reopened."
+
+  - id: t1_onboarding_missing_license
+    title: "Onboarding: new hire cannot use Teams"
+    ticket_type: onboarding
+    tier: tier1
+    priority: high
+    tags: ["onboarding", "licensing"]
+    persona_roles: ["HR"]
+    knowledge_article_ids: [kb_onboarding_license_assignment]
+    customer_problem: "New hire starts today and can sign in but Teams says they are not licensed."
+    root_cause: "License assignment failed because onboarding workflow skipped the productivity bundle."
+    expected_agent_checks:
+      - "verify onboarding checklist"
+      - "check license assignment"
+      - "confirm account sync"
+    resolution_steps:
+      - "Assign productivity license"
+      - "force directory sync"
+      - "have user sign out and sign in"
+    acceptable_resolution_keywords:
+      - "assign license"
+      - "directory sync"
+      - "sign out"
+    clue_map:
+      checklist: "I completed all HR fields but maybe not the IT access section."
+      teams: "Only Teams fails, email seems okay."
+      sync: "The account was created about 30 minutes ago."
+    hint_bank:
+      nudge: "Early onboarding failures often involve entitlement timing."
+      guided_step: "Compare expected license bundle with what the account currently has."
+      strong_hint: "Assign missing license and allow directory sync to finish."
+
+  - id: t1_printer_queue_stuck
+    title: "Invoices are stuck in printer queue"
+    ticket_type: endpoint_issue
+    tier: tier1
+    priority: normal
+    tags: ["print"]
+    persona_roles: ["Finance"]
+    customer_problem: "Every invoice print job is stuck at pending and nothing is coming out of the printer."
+    root_cause: "Print spooler service on workstation hung after driver update."
+    expected_agent_checks:
+      - "verify printer reachable"
+      - "check local spooler"
+      - "clear print queue"
+    resolution_steps:
+      - "restart spooler"
+      - "clear queued jobs"
+      - "retest print"
+    acceptable_resolution_keywords:
+      - "restart spooler"
+      - "clear queue"
+      - "print test page"
+    clue_map:
+      error: "No error popup, jobs just stay pending."
+      printer: "Other people can print from a different computer."
+      service: "I did restart my PC already."
+    hint_bank:
+      nudge: "If other users can print, isolate workstation-side services first."
+      guided_step: "Check print spooler status and queued jobs on the affected endpoint."
+      strong_hint: "Restart local spooler and clear stale queue entries."
+
+  - id: t1_vpn_disconnect
+    title: "VPN disconnects every few minutes"
+    ticket_type: vpn_issue
+    tier: tier1
+    priority: high
+    tags: ["remote", "vpn"]
+    persona_roles: ["Sales", "Finance"]
+    knowledge_article_ids: [kb_vpn_profile_update]
+    customer_problem: "I can connect to VPN but it drops every 3 to 5 minutes while I work remotely."
+    root_cause: "User profile has outdated VPN client configuration after policy update."
+    expected_agent_checks:
+      - "confirm network stability"
+      - "check vpn client version"
+      - "reapply vpn profile"
+    resolution_steps:
+      - "update client profile"
+      - "restart vpn service"
+      - "test sustained connection"
+    acceptable_resolution_keywords:
+      - "update profile"
+      - "client version"
+      - "sustained connection"
+    clue_map:
+      wifi: "My home internet is stable for streaming and calls."
+      version: "I have not updated the VPN app recently."
+      policy: "This started after the company announced a network change."
+    hint_bank:
+      nudge: "Differentiate home connectivity from VPN client configuration."
+      guided_step: "Check client version and profile timestamp against the current policy."
+      strong_hint: "Push the updated VPN profile and restart the client service."
+
+  - id: t2_finance_system_permissions
+    title: "Finance analyst cannot approve vendor payments"
+    ticket_type: access_request
+    tier: tier2
+    priority: high
+    tags: ["finance", "access"]
+    persona_roles: ["Finance"]
+    customer_problem: "I can enter invoices but the Approve action is missing from the vendor payment screen."
+    root_cause: "Role mapping in finance application removed approval permission during promotion change."
+    expected_agent_checks:
+      - "review promotion request"
+      - "compare role entitlements"
+      - "audit recent role change"
+    resolution_steps:
+      - "reapply approver role"
+      - "validate segregation policy"
+      - "test approval action"
+    acceptable_resolution_keywords:
+      - "approver role"
+      - "entitlement"
+      - "role mapping"
+    clue_map:
+      promotion: "I was promoted last week and this started after that."
+      entitlement: "My teammate with same title still has the Approve button."
+      audit: "I can still create and edit invoices."
+    hint_bank:
+      nudge: "Promotion workflows can unintentionally replace instead of add role rights."
+      guided_step: "Diff the user role mapping before and after promotion."
+      strong_hint: "Restore approver entitlement and verify policy constraints."
+
+  - id: t2_email_delivery_rule
+    title: "Customer invoices are not leaving outbox"
+    ticket_type: email_issue
+    tier: tier2
+    priority: high
+    tags: ["finance", "email"]
+    persona_roles: ["Finance"]
+    customer_problem: "Our invoice emails sit in outbox and never reach customers."
+    root_cause: "Transport rule blocks messages due to newly added finance attachment pattern."
+    expected_agent_checks:
+      - "review message trace"
+      - "inspect transport rules"
+      - "check blocked attachment signatures"
+    resolution_steps:
+      - "adjust transport rule exception"
+      - "release queued messages"
+      - "verify external delivery"
+    acceptable_resolution_keywords:
+      - "message trace"
+      - "transport rule"
+      - "exception"
+    clue_map:
+      trace: "Internal messages send fine; only customer emails fail."
+      attachment: "Most failed messages include a PDF exported by our finance tool."
+      queue: "Outbox count keeps growing."
+    hint_bank:
+      nudge: "Focus on mail flow rules, not local Outlook issues."
+      guided_step: "Run message trace on one failed invoice email."
+      strong_hint: "Update transport rule for the finance PDF signature and release queue."
+
+  - id: t2_offboarding_residual_access
+    title: "Former employee still appears active in finance app"
+    ticket_type: offboarding
+    tier: tier2
+    priority: critical
+    tags: ["offboarding", "compliance"]
+    persona_roles: ["HR"]
+    knowledge_article_ids: [kb_offboarding_deprovision]
+    customer_problem: "We offboarded someone yesterday but they still appear active in the finance application user list."
+    root_cause: "Offboarding connector failed to deprovision secondary finance identity."
+    expected_agent_checks:
+      - "confirm termination ticket"
+      - "check deprovision logs"
+      - "disable secondary finance identity"
+    resolution_steps:
+      - "disable account immediately"
+      - "reconcile connector mapping"
+      - "document compliance action"
+    acceptable_resolution_keywords:
+      - "disable account"
+      - "deprovision"
+      - "connector mapping"
+    clue_map:
+      urgency: "This is a compliance risk and needs urgent handling."
+      logs: "HR ticket shows completed offboarding at 5 PM yesterday."
+      identity: "The user cannot sign into Windows anymore, only finance app still lists them."
+    hint_bank:
+      nudge: "Treat this as immediate access containment first, root cause second."
+      guided_step: "Validate offboarding pipeline logs for secondary system identities."
+      strong_hint: "Disable residual finance identity now, then repair connector mapping."
+
+  - id: sys_network_outage_core_switch
+    title: "Multiple departments lost network access"
+    ticket_type: outage_incident
+    tier: sysadmin
+    priority: critical
+    tags: ["network", "incident"]
+    persona_roles: ["Operations", "Finance", "HR"]
+    knowledge_article_ids: [kb_outage_network_incident]
+    customer_problem: "HR and Finance both report no network access. File shares and internal apps are unreachable."
+    root_cause: "Core switch stack failed over with stale routing table after firmware mismatch."
+    expected_agent_checks:
+      - "confirm blast radius"
+      - "check core switch health"
+      - "validate routing table"
+      - "trigger incident communication"
+    resolution_steps:
+      - "stabilize core routing"
+      - "fail back to healthy firmware"
+      - "confirm service restoration"
+      - "publish incident timeline"
+    acceptable_resolution_keywords:
+      - "core switch"
+      - "routing table"
+      - "incident communication"
+      - "firmware"
+    clue_map:
+      scope: "Both floors are down, Wi-Fi and wired clients."
+      timing: "Outage started right after scheduled maintenance."
+      apps: "Internet works from mobile hotspot, but internal services do not."
+    hint_bank:
+      nudge: "Start with shared network core indicators, not endpoint troubleshooting."
+      guided_step: "Correlate maintenance timing with core switch and routing state."
+      strong_hint: "Routing table corruption after firmware mismatch is driving the outage."
+    default_follow_up: "Please keep us updated every 15 minutes while this is active."
+
+  - id: sys_dns_after_outage
+    title: "Post-outage: name resolution still failing for some users"
+    ticket_type: outage_incident
+    tier: sysadmin
+    priority: high
+    tags: ["network", "post_outage"]
+    persona_roles: ["Engineering", "Operations"]
+    customer_problem: "Network is mostly back, but several users still cannot resolve internal hostnames."
+    root_cause: "Stale DNS cache persisted on branch DHCP scope after outage recovery."
+    expected_agent_checks:
+      - "check dns server health"
+      - "validate dhcp scope options"
+      - "flush affected client dns cache"
+    resolution_steps:
+      - "correct dhcp dns options"
+      - "flush resolver cache"
+      - "validate internal hostname resolution"
+    acceptable_resolution_keywords:
+      - "dhcp option"
+      - "dns cache"
+      - "flush dns"
+    clue_map:
+      scope: "Not everyone is affected, mostly one section of the office."
+      recovery: "Users can browse internet but not internal tool hostnames."
+      ipconfig: "Running local flush works briefly then issue returns."
+    hint_bank:
+      nudge: "If only one segment is affected, inspect shared scope settings."
+      guided_step: "Compare DHCP DNS options for affected and unaffected segments."
+      strong_hint: "Fix DNS options on DHCP scope and refresh leases."
+
+  - id: t1_promotion_laptop_admin_rights
+    title: "Promotion request: manager needs software install rights"
+    ticket_type: access_request
+    tier: tier1
+    priority: normal
+    tags: ["promotion", "access"]
+    persona_roles: ["HR"]
+    customer_problem: "A newly promoted manager needs rights to install approved tools for their team."
+    root_cause: "Promotion workflow submitted without endpoint policy group update."
+    expected_agent_checks:
+      - "validate approved software policy"
+      - "check endpoint security baseline"
+      - "confirm manager access policy"
+    resolution_steps:
+      - "add to approved installers group"
+      - "force policy refresh"
+      - "test least-privilege install"
+    acceptable_resolution_keywords:
+      - "approved installers group"
+      - "policy refresh"
+      - "least privilege"
+    clue_map:
+      policy: "We only need approved applications, not full local admin."
+      promotion: "This request is tied to a title change that became effective today."
+      security: "Security asked us not to grant broad admin rights."
+    hint_bank:
+      nudge: "Look for delegated installer policy before local admin changes."
+      guided_step: "Map the request to the least-privilege endpoint group."
+      strong_hint: "Use approved installers group and refresh endpoint policy."
+
+  - id: t2_graphics_license_pool
+    title: "Design team cannot activate creative suite license"
+    ticket_type: endpoint_issue
+    tier: tier2
+    priority: normal
+    tags: ["design", "licensing"]
+    persona_roles: ["Design"]
+    customer_problem: "Two designers cannot activate the creative suite even though seats should be available."
+    root_cause: "License pool consumed by stale device activations not reclaimed after hardware swap."
+    expected_agent_checks:
+      - "audit active license seats"
+      - "identify stale device bindings"
+      - "reclaim old activations"
+    resolution_steps:
+      - "revoke stale activations"
+      - "reassign seats"
+      - "verify app launch"
+    acceptable_resolution_keywords:
+      - "reclaim activation"
+      - "license seat"
+      - "reassign"
+    clue_map:
+      seats: "Portal says all seats are used, but only 8 users are active today."
+      hardware: "We replaced two laptops this week."
+      launch: "App opens then asks to activate again."
+    hint_bank:
+      nudge: "Check seat accounting before troubleshooting endpoint installs."
+      guided_step: "Match license activations to current hardware inventory."
+      strong_hint: "Remove stale device activations and reassign seats."
+
+  - id: t1_endpoint_disk_full
+    title: "Laptop extremely slow and cannot save files"
+    ticket_type: endpoint_issue
+    tier: tier1
+    priority: normal
+    tags: ["endpoint"]
+    persona_roles: ["Operations", "HR"]
+    customer_problem: "My laptop is very slow and now says there is not enough disk space to save files."
+    root_cause: "Large temp cache and old update files consumed local disk space."
+    expected_agent_checks:
+      - "check free disk space"
+      - "review temp directory growth"
+      - "verify update cache size"
+    resolution_steps:
+      - "clean temp files"
+      - "remove stale update cache"
+      - "confirm free space threshold"
+    acceptable_resolution_keywords:
+      - "free disk"
+      - "clean temp"
+      - "update cache"
+    clue_map:
+      storage: "I only have about 1 GB left on C drive."
+      timeline: "It became much worse after last patch night."
+      behavior: "Browser and Outlook both freeze often."
+    hint_bank:
+      nudge: "Start with local resource checks before assuming malware or network causes."
+      guided_step: "Measure disk free space and the largest temp/cache locations."
+      strong_hint: "Clear temp and update cache to restore free space."
+
+  - id: t2_identity_sync_delay
+    title: "New hire appears in AD but not in SaaS app"
+    ticket_type: onboarding
+    tier: tier2
+    priority: normal
+    tags: ["identity", "onboarding"]
+    persona_roles: ["HR", "Engineering"]
+    customer_problem: "The user account exists in AD but is not showing up in the project SaaS app for assignment."
+    root_cause: "SCIM provisioning job failed because of invalid department attribute format."
+    expected_agent_checks:
+      - "review provisioning logs"
+      - "validate user attribute mapping"
+      - "retry sync job"
+    resolution_steps:
+      - "fix attribute format"
+      - "rerun provisioning"
+      - "confirm user assignment"
+    acceptable_resolution_keywords:
+      - "scim"
+      - "attribute mapping"
+      - "rerun sync"
+    clue_map:
+      logs: "Other new hires synced this week, just this one failed."
+      attributes: "Department was entered as Finance/AR in HRIS."
+      retry: "Manual refresh did not work from the SaaS admin page."
+    hint_bank:
+      nudge: "Single-user sync failures often point to data formatting, not global connector outage."
+      guided_step: "Compare mapped attributes for this user against a working user."
+      strong_hint: "Correct invalid department attribute and rerun SCIM job."

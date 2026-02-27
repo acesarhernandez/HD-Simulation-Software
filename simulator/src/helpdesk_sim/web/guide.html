@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simulator Guide</title>
+    <script src="/ui/static/theme-sync.js"></script>
+    <link rel="stylesheet" href="/ui/static/styles.css" />
+    <style>
+      .guide-shell {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px 16px 36px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .guide-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .guide-card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--card);
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .guide-title {
+        font-size: 0.96rem;
+        font-weight: 700;
+      }
+
+      .guide-body {
+        color: var(--ink-soft);
+        font-size: 0.86rem;
+        line-height: 1.45;
+      }
+
+      .guide-list {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--ink-soft);
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      .guide-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .guide-top h1 {
+        margin: 0;
+      }
+
+      @media (max-width: 780px) {
+        .guide-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="floating-theme">
+      <label class="theme-toggle compact" for="guideThemeMode">
+        <span>Theme</span>
+        <select id="guideThemeMode">
+          <option value="auto">Auto</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+    </div>
+    <main class="guide-shell">
+      <section class="panel">
+        <div class="guide-top">
+          <div>
+            <p class="eyebrow">Plain-Language Guide</p>
+            <h1>HelpDesk Simulator Terms</h1>
+            <p class="subtitle">Quick definitions so you can run practice sessions without guessing what each setting means.</p>
+          </div>
+          <a href="/ui" class="btn btn-primary">Back To Dashboard</a>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>How Sessions Work</h2>
+        </div>
+        <div class="guide-grid">
+          <article class="guide-card">
+            <div class="guide-title">Clock In</div>
+            <p class="guide-body">Starts a shift profile (for example <code>busy_day</code>) and opens an active session.</p>
+          </article>
+          <article class="guide-card">
+            <div class="guide-title">Target Active Shift</div>
+            <p class="guide-body">The manual generator needs a live session. If there is no active shift, manual generation is blocked.</p>
+          </article>
+          <article class="guide-card">
+            <div class="guide-title">Scheduler</div>
+            <p class="guide-body">Creates ticket demand based on profile timing and volume rules.</p>
+          </article>
+          <article class="guide-card">
+            <div class="guide-title">Poller</div>
+            <p class="guide-body">Reads ticket updates and posts simulated user follow-ups when needed.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Manual Generator</h2>
+        </div>
+        <div class="guide-grid">
+          <article class="guide-card">
+            <div class="guide-title">Tickets To Create Now</div>
+            <p class="guide-body">How many tickets to generate immediately in one click.</p>
+          </article>
+          <article class="guide-card">
+            <div class="guide-title">Auto (weighted)</div>
+            <p class="guide-body">Random selection, but biased by profile weights (for example tier mix or ticket type mix).</p>
+          </article>
+          <article class="guide-card">
+            <div class="guide-title">Auto (match scenario)</div>
+            <p class="guide-body">Chooses a department compatible with the eligible scenarios.</p>
+          </article>
+          <article class="guide-card">
+            <div class="guide-title">Auto (match filters)</div>
+            <p class="guide-body">Chooses a persona/scenario that fits your selected tier, type, and department.</p>
+          </article>
+          <article class="guide-card">
+            <div class="guide-title">Auto Fill Random</div>
+            <p class="guide-body">Pre-fills Tier, Type, Department, Persona, and Scenario with a valid random combination for the selected shift.</p>
+          </article>
+          <article class="guide-card">
+            <div class="guide-title">Persona Technical Level</div>
+            <p class="guide-body"><code>low</code> = non-technical, <code>medium</code> = mixed comfort, <code>high</code> = technical user.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Ticket Actions</h2>
+        </div>
+        <ul class="guide-list">
+          <li><strong>Close:</strong> marks simulator ticket closed (useful cleanup if you are done practicing).</li>
+          <li><strong>Delete:</strong> tries to delete the linked Zammad ticket first, then removes simulator data.</li>
+          <li><strong>KB Draft:</strong> once closed, generate a draft knowledge article from ticket context and analyst notes.</li>
+          <li><strong>Close All:</strong> bulk close all open tickets in selected session.</li>
+          <li><strong>Delete All:</strong> bulk delete linked Zammad tickets first, then remove simulator records.</li>
+          <li>These actions are simulator-side controls to manage your practice environment.</li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Profiles</h2>
+        </div>
+        <ul class="guide-list">
+          <li><code>normal_day</code>: balanced workload.</li>
+          <li><code>busy_day</code>: higher queue pressure.</li>
+          <li><code>outage_day</code>: incident-heavy behavior.</li>
+          <li><code>tier1_focus</code>: Tier 1 only.</li>
+          <li><code>tier2_focus</code>: Tier 2 only.</li>
+          <li><code>sysadmin_focus</code>: SysAdmin only.</li>
+          <li><code>manual_only</code>: no scheduled auto tickets; manual generation only.</li>
+        </ul>
+      </section>
+    </main>
+    <script>
+      (function () {
+        const select = document.getElementById("guideThemeMode");
+        const themeSync = window.HelpdeskThemeSync;
+        if (!select || !themeSync) {
+          return;
+        }
+
+        select.value = themeSync.getMode();
+        select.addEventListener("change", function () {
+          themeSync.setMode(select.value, true);
+        });
+      })();
+    </script>
+  </body>
+</html>

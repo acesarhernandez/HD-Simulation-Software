@@ -1,0 +1,303 @@
+profiles:
+  - name: normal_day
+    description: Balanced workload across Tier 1 and Tier 2 queues.
+    duration_hours: 8
+    cadence_minutes: 60
+    tickets_per_window_min: 2
+    tickets_per_window_max: 4
+    trickle_mode: true
+    trickle_max_per_tick: 1
+    business_hours_only: false
+    tier_weights:
+      tier1: 70
+      tier2: 20
+      sysadmin: 10
+    scenario_type_weights:
+      password_reset: 15
+      access_request: 20
+      onboarding: 15
+      offboarding: 10
+      vpn_issue: 10
+      email_issue: 10
+      endpoint_issue: 10
+      outage_incident: 10
+    incident_injections: []
+    sla_policy:
+      first_response_minutes:
+        low: 120
+        normal: 60
+        high: 30
+        critical: 10
+      resolution_minutes:
+        low: 1440
+        normal: 480
+        high: 240
+        critical: 120
+    hint_policy:
+      enabled: true
+      penalties:
+        nudge: 2
+        guided_step: 5
+        strong_hint: 10
+
+  - name: busy_day
+    description: High inbound queue to practice prioritization and SLA handling.
+    duration_hours: 8
+    cadence_minutes: 30
+    tickets_per_window_min: 3
+    tickets_per_window_max: 7
+    trickle_mode: true
+    trickle_max_per_tick: 1
+    business_hours_only: false
+    tier_weights:
+      tier1: 60
+      tier2: 30
+      sysadmin: 10
+    scenario_type_weights:
+      password_reset: 10
+      access_request: 18
+      onboarding: 15
+      offboarding: 12
+      vpn_issue: 15
+      email_issue: 15
+      endpoint_issue: 10
+      outage_incident: 5
+    incident_injections:
+      - name: Midday Printer Flood
+        at_window: 6
+        extra_tickets: 3
+        scenario_tags: ["print"]
+    sla_policy:
+      first_response_minutes:
+        low: 90
+        normal: 45
+        high: 20
+        critical: 8
+      resolution_minutes:
+        low: 960
+        normal: 360
+        high: 180
+        critical: 90
+    hint_policy:
+      enabled: true
+      penalties:
+        nudge: 2
+        guided_step: 5
+        strong_hint: 10
+
+  - name: outage_day
+    description: Simulates broad impact incidents and escalation discipline.
+    duration_hours: 8
+    cadence_minutes: 30
+    tickets_per_window_min: 2
+    tickets_per_window_max: 5
+    trickle_mode: true
+    trickle_max_per_tick: 1
+    business_hours_only: false
+    tier_weights:
+      tier1: 45
+      tier2: 30
+      sysadmin: 25
+    scenario_type_weights:
+      outage_incident: 30
+      vpn_issue: 15
+      access_request: 10
+      endpoint_issue: 10
+      email_issue: 10
+      onboarding: 10
+      offboarding: 10
+      password_reset: 5
+    incident_injections:
+      - name: Core Network Outage
+        at_window: 2
+        extra_tickets: 6
+        scenario_tags: ["network", "incident"]
+      - name: Recovery Verification
+        at_window: 4
+        extra_tickets: 3
+        scenario_tags: ["post_outage"]
+    sla_policy:
+      first_response_minutes:
+        low: 60
+        normal: 30
+        high: 15
+        critical: 5
+      resolution_minutes:
+        low: 720
+        normal: 240
+        high: 120
+        critical: 60
+    hint_policy:
+      enabled: true
+      penalties:
+        nudge: 1
+        guided_step: 3
+        strong_hint: 7
+
+  - name: tier1_focus
+    description: Tier 1-only practice day for frontline triage and user communication.
+    duration_hours: 8
+    cadence_minutes: 30
+    tickets_per_window_min: 2
+    tickets_per_window_max: 5
+    trickle_mode: true
+    trickle_max_per_tick: 1
+    business_hours_only: false
+    tier_weights:
+      tier1: 100
+      tier2: 0
+      sysadmin: 0
+    scenario_type_weights:
+      password_reset: 18
+      access_request: 20
+      onboarding: 15
+      offboarding: 10
+      vpn_issue: 14
+      email_issue: 13
+      endpoint_issue: 10
+      outage_incident: 0
+    incident_injections: []
+    sla_policy:
+      first_response_minutes:
+        low: 120
+        normal: 60
+        high: 30
+        critical: 10
+      resolution_minutes:
+        low: 1440
+        normal: 480
+        high: 240
+        critical: 120
+    hint_policy:
+      enabled: true
+      penalties:
+        nudge: 2
+        guided_step: 5
+        strong_hint: 10
+
+  - name: tier2_focus
+    description: Tier 2-only practice day for deeper troubleshooting and service restoration.
+    duration_hours: 8
+    cadence_minutes: 30
+    tickets_per_window_min: 1
+    tickets_per_window_max: 4
+    trickle_mode: true
+    trickle_max_per_tick: 1
+    business_hours_only: false
+    tier_weights:
+      tier1: 0
+      tier2: 100
+      sysadmin: 0
+    scenario_type_weights:
+      password_reset: 6
+      access_request: 20
+      onboarding: 15
+      offboarding: 14
+      vpn_issue: 18
+      email_issue: 12
+      endpoint_issue: 10
+      outage_incident: 5
+    incident_injections: []
+    sla_policy:
+      first_response_minutes:
+        low: 90
+        normal: 45
+        high: 20
+        critical: 8
+      resolution_minutes:
+        low: 960
+        normal: 360
+        high: 180
+        critical: 90
+    hint_policy:
+      enabled: true
+      penalties:
+        nudge: 2
+        guided_step: 5
+        strong_hint: 10
+
+  - name: sysadmin_focus
+    description: SysAdmin-only practice day for infrastructure incidents and platform stability.
+    duration_hours: 8
+    cadence_minutes: 30
+    tickets_per_window_min: 1
+    tickets_per_window_max: 3
+    trickle_mode: true
+    trickle_max_per_tick: 1
+    business_hours_only: false
+    tier_weights:
+      tier1: 0
+      tier2: 0
+      sysadmin: 100
+    scenario_type_weights:
+      password_reset: 0
+      access_request: 4
+      onboarding: 3
+      offboarding: 3
+      vpn_issue: 22
+      email_issue: 8
+      endpoint_issue: 20
+      outage_incident: 40
+    incident_injections:
+      - name: Core Service Degradation
+        at_window: 3
+        extra_tickets: 2
+        scenario_tags: ["incident"]
+    sla_policy:
+      first_response_minutes:
+        low: 60
+        normal: 30
+        high: 15
+        critical: 5
+      resolution_minutes:
+        low: 720
+        normal: 240
+        high: 120
+        critical: 60
+    hint_policy:
+      enabled: true
+      penalties:
+        nudge: 1
+        guided_step: 3
+        strong_hint: 7
+
+  - name: manual_only
+    description: Manual-practice mode. No scheduled tickets are created unless you use manual generator.
+    duration_hours: 8
+    cadence_minutes: 30
+    tickets_per_window_min: 0
+    tickets_per_window_max: 0
+    trickle_mode: true
+    trickle_max_per_tick: 1
+    business_hours_only: false
+    tier_weights:
+      tier1: 70
+      tier2: 20
+      sysadmin: 10
+    scenario_type_weights:
+      password_reset: 15
+      access_request: 15
+      onboarding: 15
+      offboarding: 10
+      vpn_issue: 15
+      email_issue: 10
+      endpoint_issue: 10
+      outage_incident: 10
+    incident_injections: []
+    sla_policy:
+      first_response_minutes:
+        low: 120
+        normal: 60
+        high: 30
+        critical: 10
+      resolution_minutes:
+        low: 1440
+        normal: 480
+        high: 240
+        critical: 120
+    hint_policy:
+      enabled: true
+      penalties:
+        nudge: 2
+        guided_step: 5
+        strong_hint: 10

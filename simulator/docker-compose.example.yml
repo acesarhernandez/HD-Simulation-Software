@@ -1,0 +1,28 @@
+services:
+  helpdesk-simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: helpdesk-simulator
+    ports:
+      - "8079:8079"
+    environment:
+      SIM_ENV: prod
+      SIM_DB_PATH: /app/data/simulator.db
+      SIM_POLL_INTERVAL_SECONDS: 30
+      SIM_SCHEDULER_INTERVAL_SECONDS: 30
+      SIM_TEMPLATES_DIR: /app/src/helpdesk_sim/templates
+      SIM_ZAMMAD_URL: http://zammad.local
+      SIM_ZAMMAD_TOKEN: replace_me
+      SIM_ZAMMAD_VERIFY_TLS: "true"
+      SIM_ZAMMAD_GROUP_TIER1: Service Desk
+      SIM_ZAMMAD_GROUP_TIER2: Tier 2
+      SIM_ZAMMAD_GROUP_SYSADMIN: Systems
+      SIM_ZAMMAD_CUSTOMER_FALLBACK_EMAIL: ""
+      SIM_USE_DRY_RUN: "false"
+      SIM_RESPONSE_ENGINE: rule_based
+      SIM_OLLAMA_URL: http://100.64.0.20:11434
+      SIM_OLLAMA_MODEL: llama3.1:8b
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

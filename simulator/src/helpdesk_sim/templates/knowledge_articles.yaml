@@ -1,0 +1,36 @@
+articles:
+  - id: kb_password_reset_policy
+    title: Password Reset and Unlock Procedure
+    url: https://kb.example.local/password-reset
+    summary: Covers lockout checks, password reset flow, and MFA validation.
+    tags: [identity, tier1]
+
+  - id: kb_shared_mailbox_access
+    title: Shared Mailbox Access Management
+    url: https://kb.example.local/shared-mailbox-access
+    summary: Documents mailbox permission groups and Outlook refresh steps.
+    tags: [email, access]
+
+  - id: kb_onboarding_license_assignment
+    title: New Hire License Assignment Checklist
+    url: https://kb.example.local/onboarding-licenses
+    summary: Step-by-step checklist for assigning productivity licenses.
+    tags: [onboarding, licensing]
+
+  - id: kb_vpn_profile_update
+    title: VPN Client Profile Update Procedure
+    url: https://kb.example.local/vpn-profile-update
+    summary: Policy, profile refresh, and connection validation workflow.
+    tags: [vpn, remote]
+
+  - id: kb_outage_network_incident
+    title: Core Network Incident Response Runbook
+    url: https://kb.example.local/network-incident
+    summary: Incident communication, triage, and recovery process.
+    tags: [incident, network, sysadmin]
+
+  - id: kb_offboarding_deprovision
+    title: Offboarding Deprovision Verification
+    url: https://kb.example.local/offboarding-deprovision
+    summary: Compliance checklist for account disablement across systems.
+    tags: [offboarding, compliance]
