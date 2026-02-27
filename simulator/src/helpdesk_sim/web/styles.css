@@ -74,7 +74,7 @@ body {
   z-index: 1;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 24px 20px 38px;
+  padding: 24px 20px 24px;
   display: grid;
   gap: 16px;
 }
@@ -711,12 +711,13 @@ td:nth-child(5) {
 }
 
 .signature-note {
-  margin-top: 10px;
-  min-height: 58px;
-  padding: 8px 0 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  margin-top: 12px;
+  min-height: 62px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  white-space: nowrap;
   color: var(--ink-soft);
   font-size: 0.84rem;
   letter-spacing: 0.02em;
@@ -791,6 +792,6 @@ td:nth-child(5) {
   }
 
   .shell {
-    padding: 16px 12px 28px;
+    padding: 16px 12px 20px;
   }
 }
