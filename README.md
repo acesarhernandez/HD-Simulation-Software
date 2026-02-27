@@ -1,4 +1,4 @@
-# HelpDesk Software Lab
+# HD Simulation Software
 
 Operations toolkit for building and running a realistic help desk training environment with Zammad.
 

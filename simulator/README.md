@@ -1,4 +1,4 @@
-# HelpDesk Simulator Backend
+# HD Simulation Software Backend
 
 A config-driven training backend for Zammad labs.
 
