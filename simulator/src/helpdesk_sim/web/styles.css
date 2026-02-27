@@ -710,6 +710,19 @@ td:nth-child(5) {
   animation-delay: var(--delay, 0s);
 }
 
+.signature-note {
+  margin-top: 10px;
+  min-height: 58px;
+  padding: 8px 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  letter-spacing: 0.02em;
+  opacity: 0.92;
+}
+
 @keyframes rise {
   from {
     opacity: 0;
