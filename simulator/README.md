@@ -4,6 +4,25 @@ A config-driven training backend for Zammad labs.
 
 This service generates realistic ticket traffic, listens for analyst responses, simulates customer follow-up behavior, grades closed tickets, and produces daily/weekly performance summaries.
 
+## Release Track
+
+- **V1 (current / stable):** [https://github.com/acesarhernandez/HD-Simulation-Software](https://github.com/acesarhernandez/HD-Simulation-Software) (`main`)
+  - Primary target: homelab deployment
+  - Default response engine: `rule_based`
+- **V2 (in development):**
+  - Primary target: same backend with optional remote LLM endpoint
+  - Planned response engine mode: `ollama`
+
+## What LLM Changes In V2
+
+V1 already covers queue generation, ticket injection, poller loops, hints, scoring, and reports without any LLM.  
+V2 keeps that foundation and adds optional LLM behavior where it improves realism:
+
+- **Natural customer dialog:** less canned follow-up phrasing, better continuity across replies.
+- **Adaptive hints/coaching:** hint text can adapt to your actual troubleshooting steps.
+- **Richer closure feedback:** explanation quality can improve while deterministic score math stays intact.
+- **Scenario expression variety:** same underlying truth, but more variation in ticket wording and user tone.
+
 ## What v1 Includes
 
 - Session profiles (`normal_day`, `busy_day`, `outage_day`, `tier1_focus`, `tier2_focus`, `sysadmin_focus`, `manual_only`) with clock-in style operation.
