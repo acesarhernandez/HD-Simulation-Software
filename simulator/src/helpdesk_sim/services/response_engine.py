@@ -12,12 +12,17 @@ class ResponseEngine(Protocol):
     def generate_reply(self, agent_message: str, hidden_truth: dict[str, object]) -> str:
         ...
 
+    def describe_status(self) -> dict[str, object]:
+        ...
+
 
 @dataclass(slots=True)
 class RuleBasedResponseEngine:
     fallback_message: str = "I can provide more details if you tell me what to check next."
+    generated_reply_count: int = 0
 
     def generate_reply(self, agent_message: str, hidden_truth: dict[str, object]) -> str:
+        self.generated_reply_count += 1
         agent_lower = agent_message.lower()
         clue_map = hidden_truth.get("clue_map", {})
         if isinstance(clue_map, dict):
@@ -83,12 +88,27 @@ class RuleBasedResponseEngine:
 
         return None
 
+    def describe_status(self) -> dict[str, object]:
+        return {
+            "configured_engine": "rule_based",
+            "active_mode": "rule_based",
+            "llm_enabled": False,
+            "llm_optional": True,
+            "fallback_enabled": False,
+            "generated_reply_count": self.generated_reply_count,
+        }
+
 
 @dataclass(slots=True)
 class OllamaResponseEngine:
     base_url: str
     model: str
     timeout_seconds: float = 30.0
+    fallback_engine: ResponseEngine | None = None
+    successful_llm_reply_count: int = 0
+    fallback_reply_count: int = 0
+    last_reply_mode: str = "not_used_yet"
+    last_error: str | None = None
 
     def generate_reply(self, agent_message: str, hidden_truth: dict[str, object]) -> str:
         system_prompt = (
@@ -106,12 +126,44 @@ class OllamaResponseEngine:
             "prompt": f"{system_prompt}\n\n{prompt}",
             "stream": False,
         }
-        with httpx.Client(base_url=self.base_url, timeout=self.timeout_seconds) as client:
-            response = client.post("/api/generate", json=payload)
-            response.raise_for_status()
-            data = response.json()
-            text = str(data.get("response", "")).strip()
-            return text or "I can provide more details if needed."
+        try:
+            with httpx.Client(base_url=self.base_url, timeout=self.timeout_seconds) as client:
+                response = client.post("/api/generate", json=payload)
+                response.raise_for_status()
+                data = response.json()
+                text = str(data.get("response", "")).strip()
+                if not text:
+                    raise RuntimeError("Ollama returned an empty response")
+                self.successful_llm_reply_count += 1
+                self.last_reply_mode = "ollama"
+                self.last_error = None
+                return text
+        except Exception as exc:
+            self.last_error = str(exc)
+            if self.fallback_engine is not None:
+                self.fallback_reply_count += 1
+                self.last_reply_mode = "fallback_rule_based"
+                return self.fallback_engine.generate_reply(agent_message, hidden_truth)
+            self.last_reply_mode = "error"
+            raise
+
+    def describe_status(self) -> dict[str, object]:
+        fallback_name = None
+        if self.fallback_engine is not None:
+            fallback_name = self.fallback_engine.describe_status().get("configured_engine")
+        return {
+            "configured_engine": "ollama",
+            "active_mode": self.last_reply_mode,
+            "llm_enabled": True,
+            "llm_optional": True,
+            "fallback_enabled": self.fallback_engine is not None,
+            "fallback_engine": fallback_name,
+            "ollama_url": self.base_url,
+            "ollama_model": self.model,
+            "successful_llm_reply_count": self.successful_llm_reply_count,
+            "fallback_reply_count": self.fallback_reply_count,
+            "last_error": self.last_error,
+        }
 
 
 def get_hint_for_level(hidden_truth: dict[str, object], level: HintLevel) -> str:

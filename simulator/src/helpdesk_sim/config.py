@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     response_engine: str = "rule_based"
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.1:8b"
+    ollama_fallback_to_rule_based: bool = True
 
     def resolve_db_path(self, cwd: Path) -> Path:
         return self.db_path if self.db_path.is_absolute() else (cwd / self.db_path).resolve()

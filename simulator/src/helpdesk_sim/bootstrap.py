@@ -25,6 +25,7 @@ class Runtime:
     settings: Settings
     repository: SimulatorRepository
     catalog: CatalogService
+    response_engine: ResponseEngine
     session_service: SessionService
     scheduler_service: SchedulerService
     poller_service: PollerService
@@ -74,6 +75,7 @@ def build_runtime(settings: Settings, cwd: Path) -> Runtime:
         settings=settings,
         repository=repository,
         catalog=catalog,
+        response_engine=response_engine,
         session_service=session_service,
         scheduler_service=scheduler_service,
         poller_service=poller_service,
@@ -99,8 +101,10 @@ def _build_zammad_gateway(settings: Settings) -> ZammadGateway:
 
 def _build_response_engine(settings: Settings) -> ResponseEngine:
     if settings.response_engine == "ollama":
+        fallback_engine = RuleBasedResponseEngine() if settings.ollama_fallback_to_rule_based else None
         return OllamaResponseEngine(
             base_url=settings.ollama_url,
             model=settings.ollama_model,
+            fallback_engine=fallback_engine,
         )
     return RuleBasedResponseEngine()

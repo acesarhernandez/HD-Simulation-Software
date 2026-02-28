@@ -9,9 +9,10 @@ This service generates realistic ticket traffic, listens for analyst responses, 
 - **V1 (current / stable):** [https://github.com/acesarhernandez/HD-Simulation-Software](https://github.com/acesarhernandez/HD-Simulation-Software) (`main`)
   - Primary target: homelab deployment
   - Default response engine: `rule_based`
-- **V2 (in development):**
+- **V2 (in development):** [https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev](https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev)
   - Primary target: same backend with optional remote LLM endpoint
   - Planned response engine mode: `ollama`
+  - If the LLM is unavailable, the simulator can fall back to rule-based replies
 
 ## What LLM Changes In V2
 
@@ -99,6 +100,7 @@ Open API docs:
 - [http://localhost:8079/docs](http://localhost:8079/docs)
 - [http://localhost:8079/ui](http://localhost:8079/ui) (Dashboard)
 - [http://localhost:8079/ui/guide](http://localhost:8079/ui/guide) (Plain-language guide)
+- [http://localhost:8079/v1/runtime/response-engine](http://localhost:8079/v1/runtime/response-engine) (Response engine status)
 
 Dashboard highlights:
 
@@ -135,6 +137,8 @@ Environment variables use the `SIM_` prefix.
 - `SIM_USE_DRY_RUN`: `true` for local testing without Zammad.
 - `SIM_RESPONSE_ENGINE`: `rule_based` (v1 default) or `ollama` (v2 option).
 - `SIM_OLLAMA_URL`: remote Ollama endpoint for v2.
+- `SIM_OLLAMA_MODEL`: model name for the remote LLM.
+- `SIM_OLLAMA_FALLBACK_TO_RULE_BASED`: if `true`, Ollama failures fall back to rule-based replies.
 - `SIM_DB_PATH`: SQLite file path.
 - `SIM_POLL_INTERVAL_SECONDS`: how often poller checks for updates.
 - `SIM_SCHEDULER_INTERVAL_SECONDS`: how often scheduler checks for due windows.

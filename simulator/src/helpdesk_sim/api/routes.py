@@ -12,6 +12,14 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.get("/v1/runtime/response-engine")
+def get_response_engine_status(request: Request) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    status = runtime.response_engine.describe_status()
+    status["english_summary"] = _response_engine_summary(status)
+    return status
+
+
 @router.get("/v1/profiles")
 def list_profiles(request: Request) -> dict:
     runtime = request.app.state.runtime
@@ -488,6 +496,25 @@ def _report_summary(report_type: str, report: dict) -> str:
         delta = float(comparison["score_delta"])
         direction = "up" if delta >= 0 else "down"
         summary += f" Score trend: {direction} {abs(delta):.2f} vs previous {label.lower()} report."
+    return summary
+
+
+def _response_engine_summary(status: dict[str, object]) -> str:
+    configured = str(status.get("configured_engine", "unknown")).replace("_", " ")
+    active = str(status.get("active_mode", "unknown")).replace("_", " ")
+    if configured == "rule based":
+        count = int(status.get("generated_reply_count", 0))
+        return f"Rule-based response engine is active. Generated replies: {count}."
+
+    success = int(status.get("successful_llm_reply_count", 0))
+    fallback = int(status.get("fallback_reply_count", 0))
+    summary = (
+        f"Ollama response engine is configured. Current mode: {active}. "
+        f"LLM replies: {success}. Fallback replies: {fallback}."
+    )
+    last_error = status.get("last_error")
+    if last_error:
+        summary += f" Last LLM error: {last_error}."
     return summary
 
 

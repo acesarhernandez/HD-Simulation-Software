@@ -5,7 +5,7 @@ Operations toolkit for building and running a realistic help desk training envir
 ## Version Status
 
 - **V1 (current / stable):** [HD Simulation Software v1](https://github.com/acesarhernandez/HD-Simulation-Software) on `main`, designed for homelab deployment with deterministic, rule-based simulation.
-- **V2 (in development):** LLM-enhanced simulation track being developed for richer user behavior and coaching while keeping the same backend architecture.
+- **V2 (in development):** [HD Simulation Software v2 dev branch](https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev), the optional-LLM track that keeps the same backend architecture while adding LLM enhancements.
 
 ## V1 vs V2 (LLM)
 
