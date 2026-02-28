@@ -127,6 +127,35 @@ cp docker-compose.example.yml docker-compose.yml
 docker compose up -d --build
 ```
 
+## Easy Configuration Path
+
+If you want the fastest, lowest-friction setup:
+
+1. Copy `.env.example` to `.env`
+2. Fill in your Zammad values first
+3. Start in `rule_based` mode
+4. Only add Ollama/Wake-on-LAN settings after `v1` behavior is stable
+
+Recommended `v1` baseline:
+
+```env
+SIM_USE_DRY_RUN=false
+SIM_RESPONSE_ENGINE=rule_based
+SIM_LLM_HOST_WOL_ENABLED=false
+```
+
+Recommended `v2` optional LLM baseline:
+
+```env
+SIM_USE_DRY_RUN=false
+SIM_RESPONSE_ENGINE=ollama
+SIM_OLLAMA_FALLBACK_TO_RULE_BASED=true
+```
+
+Windows LLM host setup guide:
+
+- [../docs/windows-llm-host-setup.md](../docs/windows-llm-host-setup.md)
+
 ## Configuration
 
 Environment variables use the `SIM_` prefix.
