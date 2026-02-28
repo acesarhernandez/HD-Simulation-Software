@@ -255,6 +255,21 @@
         </article>
       </section>
 
+      <section class="panel reveal" style="--delay: 0.28s">
+        <div class="panel-head">
+          <h2>LLM Runtime</h2>
+          <div class="panel-actions">
+            <span id="llmStatusBadge" class="badge">Checking LLM...</span>
+            <button id="llmStatusRefreshBtn" class="btn">Refresh LLM Status</button>
+            <button id="wakeEngineBtn" class="btn btn-warn">Wake Engine PC</button>
+          </div>
+        </div>
+        <p class="mini-help">
+          Optional v2 controls. If the LLM is offline or sleeping, the simulator can fall back to rule-based replies.
+        </p>
+        <pre id="llmStatusResult" class="log-box">Loading LLM runtime status...</pre>
+      </section>
+
       <footer class="signature-note reveal" style="--delay: 0.3s">Made with love in Portland, Oregon 🌹💚</footer>
     </main>
 

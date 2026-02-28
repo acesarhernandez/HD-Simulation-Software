@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from helpdesk_sim.domain.models import ClockInRequest, ManualTicketRequest, HintRequest
+from helpdesk_sim.domain.models import ClockInRequest, HintRequest, ManualTicketRequest
+from helpdesk_sim.services.wake_on_lan import mask_mac_address, send_magic_packet
 
 router = APIRouter()
 
@@ -16,8 +17,48 @@ def health() -> dict[str, str]:
 def get_response_engine_status(request: Request) -> dict[str, object]:
     runtime = request.app.state.runtime
     status = runtime.response_engine.describe_status()
+    status.update(_wake_on_lan_status(runtime.settings))
     status["english_summary"] = _response_engine_summary(status)
     return status
+
+
+@router.post("/v1/runtime/wake-llm-host")
+def wake_llm_host(request: Request) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    settings = runtime.settings
+    if not settings.llm_host_wol_enabled:
+        raise HTTPException(status_code=400, detail="Wake-on-LAN is disabled for the LLM host")
+    if not settings.llm_host_mac.strip():
+        raise HTTPException(status_code=400, detail="LLM host MAC address is not configured")
+
+    try:
+        packet_bytes = send_magic_packet(
+            mac_address=settings.llm_host_mac,
+            broadcast_ip=settings.llm_host_wol_broadcast_ip,
+            port=settings.llm_host_wol_port,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid LLM host MAC address: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"failed to send Wake-on-LAN packet: {exc}",
+        ) from exc
+
+    return {
+        "wake_sent": True,
+        "packet_bytes": packet_bytes,
+        "llm_host_label": settings.llm_host_label,
+        "llm_host_mac_masked": mask_mac_address(settings.llm_host_mac),
+        "wake_on_lan_enabled": True,
+        "wake_on_lan_ready": True,
+        "broadcast_ip": settings.llm_host_wol_broadcast_ip,
+        "port": settings.llm_host_wol_port,
+        "english_summary": (
+            f"Wake signal sent to {settings.llm_host_label} "
+            f"({mask_mac_address(settings.llm_host_mac)})."
+        ),
+    }
 
 
 @router.get("/v1/profiles")
@@ -504,7 +545,11 @@ def _response_engine_summary(status: dict[str, object]) -> str:
     active = str(status.get("active_mode", "unknown")).replace("_", " ")
     if configured == "rule based":
         count = int(status.get("generated_reply_count", 0))
-        return f"Rule-based response engine is active. Generated replies: {count}."
+        summary = f"Rule-based response engine is active. Generated replies: {count}."
+        wake_summary = _wake_summary(status)
+        if wake_summary:
+            summary += f" {wake_summary}"
+        return summary
 
     success = int(status.get("successful_llm_reply_count", 0))
     fallback = int(status.get("fallback_reply_count", 0))
@@ -515,7 +560,44 @@ def _response_engine_summary(status: dict[str, object]) -> str:
     last_error = status.get("last_error")
     if last_error:
         summary += f" Last LLM error: {last_error}."
+    wake_summary = _wake_summary(status)
+    if wake_summary:
+        summary += f" {wake_summary}"
     return summary
+
+
+def _wake_on_lan_status(settings) -> dict[str, object]:
+    mac = settings.llm_host_mac.strip()
+    masked_mac = None
+    mac_valid = False
+    if mac:
+        try:
+            masked_mac = mask_mac_address(mac)
+            mac_valid = True
+        except ValueError:
+            masked_mac = None
+            mac_valid = False
+    ready = bool(settings.llm_host_wol_enabled and mac_valid)
+    return {
+        "llm_host_label": settings.llm_host_label,
+        "wake_on_lan_enabled": settings.llm_host_wol_enabled,
+        "wake_on_lan_ready": ready,
+        "llm_host_mac_masked": masked_mac,
+        "llm_host_mac_valid": mac_valid,
+        "llm_host_wol_broadcast_ip": settings.llm_host_wol_broadcast_ip,
+        "llm_host_wol_port": settings.llm_host_wol_port,
+    }
+
+
+def _wake_summary(status: dict[str, object]) -> str:
+    enabled = bool(status.get("wake_on_lan_enabled"))
+    ready = bool(status.get("wake_on_lan_ready"))
+    label = str(status.get("llm_host_label", "LLM host"))
+    if ready:
+        return f"Wake-on-LAN is ready for {label}."
+    if enabled:
+        return f"Wake-on-LAN is enabled for {label}, but MAC configuration is incomplete or invalid."
+    return f"Wake-on-LAN is off for {label}."
 
 
 def _build_kb_markdown(ticket, hidden: dict, interactions) -> str:

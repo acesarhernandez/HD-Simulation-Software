@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.1:8b"
     ollama_fallback_to_rule_based: bool = True
+    llm_host_label: str = "LLM PC"
+    llm_host_wol_enabled: bool = False
+    llm_host_mac: str = ""
+    llm_host_wol_broadcast_ip: str = "255.255.255.255"
+    llm_host_wol_port: int = 9
 
     def resolve_db_path(self, cwd: Path) -> Path:
         return self.db_path if self.db_path.is_absolute() else (cwd / self.db_path).resolve()

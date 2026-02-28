@@ -15,7 +15,11 @@ from helpdesk_sim.services.grading_service import GradingService
 from helpdesk_sim.services.hint_service import HintService
 from helpdesk_sim.services.poller_service import PollerService
 from helpdesk_sim.services.report_service import ReportService
-from helpdesk_sim.services.response_engine import OllamaResponseEngine, ResponseEngine, RuleBasedResponseEngine
+from helpdesk_sim.services.response_engine import (
+    OllamaResponseEngine,
+    ResponseEngine,
+    RuleBasedResponseEngine,
+)
 from helpdesk_sim.services.scheduler_service import SchedulerService
 from helpdesk_sim.services.session_service import SessionService
 
@@ -101,7 +105,9 @@ def _build_zammad_gateway(settings: Settings) -> ZammadGateway:
 
 def _build_response_engine(settings: Settings) -> ResponseEngine:
     if settings.response_engine == "ollama":
-        fallback_engine = RuleBasedResponseEngine() if settings.ollama_fallback_to_rule_based else None
+        fallback_engine = (
+            RuleBasedResponseEngine() if settings.ollama_fallback_to_rule_based else None
+        )
         return OllamaResponseEngine(
             base_url=settings.ollama_url,
             model=settings.ollama_model,

@@ -9,7 +9,12 @@ from helpdesk_sim.domain.models import HintLevel
 
 
 class ResponseEngine(Protocol):
-    def generate_reply(self, agent_message: str, hidden_truth: dict[str, object]) -> str:
+    def generate_reply(
+        self,
+        agent_message: str,
+        hidden_truth: dict[str, object],
+        recent_interactions: list[dict[str, object]] | None = None,
+    ) -> str:
         ...
 
     def describe_status(self) -> dict[str, object]:
@@ -21,7 +26,12 @@ class RuleBasedResponseEngine:
     fallback_message: str = "I can provide more details if you tell me what to check next."
     generated_reply_count: int = 0
 
-    def generate_reply(self, agent_message: str, hidden_truth: dict[str, object]) -> str:
+    def generate_reply(
+        self,
+        agent_message: str,
+        hidden_truth: dict[str, object],
+        recent_interactions: list[dict[str, object]] | None = None,
+    ) -> str:
         self.generated_reply_count += 1
         agent_lower = agent_message.lower()
         clue_map = hidden_truth.get("clue_map", {})
@@ -110,16 +120,14 @@ class OllamaResponseEngine:
     last_reply_mode: str = "not_used_yet"
     last_error: str | None = None
 
-    def generate_reply(self, agent_message: str, hidden_truth: dict[str, object]) -> str:
-        system_prompt = (
-            "You are an end user replying in an IT support ticket. "
-            "Do not reveal root cause unless directly proven. Keep replies short and realistic."
-        )
-        prompt = (
-            f"Agent message: {agent_message}\n"
-            f"Hidden scenario context: {hidden_truth}\n"
-            "Write the end-user response only."
-        )
+    def generate_reply(
+        self,
+        agent_message: str,
+        hidden_truth: dict[str, object],
+        recent_interactions: list[dict[str, object]] | None = None,
+    ) -> str:
+        system_prompt = self._build_system_prompt(agent_message, hidden_truth, recent_interactions)
+        prompt = self._build_prompt(agent_message, hidden_truth, recent_interactions)
 
         payload = {
             "model": self.model,
@@ -134,6 +142,8 @@ class OllamaResponseEngine:
                 text = str(data.get("response", "")).strip()
                 if not text:
                     raise RuntimeError("Ollama returned an empty response")
+                if self._response_needs_fallback(agent_message, text):
+                    raise RuntimeError("Ollama returned a vague response; using fallback")
                 self.successful_llm_reply_count += 1
                 self.last_reply_mode = "ollama"
                 self.last_error = None
@@ -164,6 +174,121 @@ class OllamaResponseEngine:
             "fallback_reply_count": self.fallback_reply_count,
             "last_error": self.last_error,
         }
+
+    @staticmethod
+    def _build_system_prompt(
+        agent_message: str,
+        hidden_truth: dict[str, object],
+        recent_interactions: list[dict[str, object]] | None,
+    ) -> str:
+        persona = hidden_truth.get("persona", {})
+        persona_name = "the user"
+        persona_role = "employee"
+        technical_level = "medium"
+        tone = "neutral"
+        if isinstance(persona, dict):
+            persona_name = str(persona.get("full_name") or persona_name)
+            persona_role = str(persona.get("role") or persona_role)
+            technical_level = str(persona.get("technical_level") or technical_level)
+            tone = str(persona.get("tone") or tone)
+
+        relevant_clues = OllamaResponseEngine._collect_relevant_clues(agent_message, hidden_truth)
+        interaction_count = len(recent_interactions or [])
+
+        lines = [
+            "You are replying as the end user in an IT support ticket.",
+            f"Persona: {persona_name}, department {persona_role}, technical level {technical_level}, tone {tone}.",
+            "Write exactly one short ticket reply with no greeting and no signature.",
+            "Stay realistic, cooperative, and concise.",
+            "Do not reveal the hidden root cause unless the agent has already proven it.",
+            "Do not say vague lines such as 'tell me exactly what you need' or 'I can try steps while you stay on the ticket' when the agent asked a specific question.",
+            "If the agent asked for a concrete fact and the hidden context contains that fact, answer it directly.",
+            "If the question is broad, give one or two useful details that move the ticket forward.",
+            "Keep it to 1 to 3 sentences.",
+        ]
+        if relevant_clues:
+            lines.append(f"Answer-relevant clues: {' | '.join(relevant_clues)}.")
+        if interaction_count:
+            lines.append(
+                f"There are {interaction_count} recent ticket messages. "
+                "Stay consistent with that history."
+            )
+        return " ".join(lines)
+
+    @staticmethod
+    def _build_prompt(
+        agent_message: str,
+        hidden_truth: dict[str, object],
+        recent_interactions: list[dict[str, object]] | None,
+    ) -> str:
+        ticket_type = str(hidden_truth.get("ticket_type", "general")).strip() or "general"
+        customer_problem = str(hidden_truth.get("customer_problem", "")).strip()
+        default_follow_up = str(hidden_truth.get("default_follow_up", "")).strip()
+        clue_map = hidden_truth.get("clue_map", {})
+        clue_lines: list[str] = []
+        if isinstance(clue_map, dict):
+            for key, value in clue_map.items():
+                clue_lines.append(f"- {key}: {value}")
+
+        interaction_lines: list[str] = []
+        for row in recent_interactions or []:
+            actor = str(row.get("actor", "unknown")).strip() or "unknown"
+            body = str(row.get("body", "")).strip()
+            if not body:
+                continue
+            interaction_lines.append(f"- {actor}: {body}")
+        if not interaction_lines:
+            interaction_lines.append("- No prior interaction history available.")
+
+        sections = [
+            f"Ticket type: {ticket_type}",
+        ]
+        if customer_problem:
+            sections.append(f"Original user problem: {customer_problem}")
+        if default_follow_up:
+            sections.append(f"Fallback style: {default_follow_up}")
+        if clue_lines:
+            sections.append("Known user-facing clues:\n" + "\n".join(clue_lines))
+        sections.append("Recent ticket conversation:\n" + "\n".join(interaction_lines[-6:]))
+        sections.append(f"Latest agent message:\n{agent_message}")
+        sections.append("Reply as the end user now. Output only the reply text.")
+        return "\n\n".join(sections)
+
+    @staticmethod
+    def _collect_relevant_clues(agent_message: str, hidden_truth: dict[str, object]) -> list[str]:
+        clue_map = hidden_truth.get("clue_map", {})
+        if not isinstance(clue_map, dict):
+            return []
+
+        lowered = agent_message.lower()
+        relevant: list[str] = []
+        for key, value in clue_map.items():
+            clue_key = str(key).lower()
+            if RuleBasedResponseEngine._question_matches_key(lowered, clue_key):
+                relevant.append(f"{key}: {value}")
+        return relevant[:4]
+
+    @staticmethod
+    def _response_needs_fallback(agent_message: str, text: str) -> bool:
+        lowered = text.lower()
+        generic_markers = [
+            "tell me exactly what you need",
+            "tell me what you need",
+            "i can provide more details if needed",
+            "i can provide more details if you need",
+            "i can try steps while you stay on the ticket",
+            "let me know what you need",
+        ]
+        if any(marker in lowered for marker in generic_markers):
+            return True
+
+        asks_direct_question = "?" in agent_message or any(
+            token in agent_message.lower()
+            for token in ["which", "what", "where", "who", "when", "can you tell me", "could you tell me"]
+        )
+        if asks_direct_question and len(lowered.split()) <= 4:
+            return True
+        return False
 
 
 def get_hint_for_level(hidden_truth: dict[str, object], level: HintLevel) -> str:

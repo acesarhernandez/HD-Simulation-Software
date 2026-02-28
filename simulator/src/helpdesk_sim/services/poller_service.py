@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 
 from helpdesk_sim.adapters.gateway import ZammadGateway
+from helpdesk_sim.domain.models import SessionProfile
 from helpdesk_sim.repositories.sqlite_store import SimulatorRepository
 from helpdesk_sim.services.grading_service import GradingService
 from helpdesk_sim.services.response_engine import ResponseEngine
-from helpdesk_sim.domain.models import SessionProfile
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +57,15 @@ class PollerService:
                     metadata={"article_id": article.id},
                 )
 
+                recent_interactions = [
+                    row.model_dump(mode="json")
+                    for row in self.repository.list_interactions(ticket.id)[-6:]
+                ]
+
                 user_reply = self.response_engine.generate_reply(
                     agent_message=article.body,
                     hidden_truth=ticket.hidden_truth,
+                    recent_interactions=recent_interactions,
                 )
 
                 try:

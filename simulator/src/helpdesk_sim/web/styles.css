@@ -149,6 +149,12 @@ h1 {
   background: #fef2f2;
 }
 
+.badge.warn {
+  color: #92400e;
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
 .panel {
   padding: 16px;
 }

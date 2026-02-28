@@ -20,9 +20,11 @@ V1 already covers queue generation, ticket injection, poller loops, hints, scori
 V2 keeps that foundation and adds optional LLM behavior where it improves realism:
 
 - **Natural customer dialog:** less canned follow-up phrasing, better continuity across replies.
+- **Conversation continuity:** recent ticket interactions can be included in the LLM prompt for better follow-up consistency.
 - **Adaptive hints/coaching:** hint text can adapt to your actual troubleshooting steps.
 - **Richer closure feedback:** explanation quality can improve while deterministic score math stays intact.
 - **Scenario expression variety:** same underlying truth, but more variation in ticket wording and user tone.
+- **Optional wake control:** the UI can expose a Wake-on-LAN action for the LLM host PC when configured.
 
 ## What v1 Includes
 
@@ -101,6 +103,7 @@ Open API docs:
 - [http://localhost:8079/ui](http://localhost:8079/ui) (Dashboard)
 - [http://localhost:8079/ui/guide](http://localhost:8079/ui/guide) (Plain-language guide)
 - [http://localhost:8079/v1/runtime/response-engine](http://localhost:8079/v1/runtime/response-engine) (Response engine status)
+- `POST /v1/runtime/wake-llm-host` (Optional Wake-on-LAN trigger for the LLM PC)
 
 Dashboard highlights:
 
@@ -139,6 +142,11 @@ Environment variables use the `SIM_` prefix.
 - `SIM_OLLAMA_URL`: remote Ollama endpoint for v2.
 - `SIM_OLLAMA_MODEL`: model name for the remote LLM.
 - `SIM_OLLAMA_FALLBACK_TO_RULE_BASED`: if `true`, Ollama failures fall back to rule-based replies.
+- `SIM_LLM_HOST_LABEL`: UI label for the optional LLM host machine.
+- `SIM_LLM_HOST_WOL_ENABLED`: enables the Wake-on-LAN button and backend endpoint.
+- `SIM_LLM_HOST_MAC`: target MAC address for the LLM host.
+- `SIM_LLM_HOST_WOL_BROADCAST_IP`: broadcast IP used to send the magic packet.
+- `SIM_LLM_HOST_WOL_PORT`: UDP port used for Wake-on-LAN (commonly `7` or `9`).
 - `SIM_DB_PATH`: SQLite file path.
 - `SIM_POLL_INTERVAL_SECONDS`: how often poller checks for updates.
 - `SIM_SCHEDULER_INTERVAL_SECONDS`: how often scheduler checks for due windows.

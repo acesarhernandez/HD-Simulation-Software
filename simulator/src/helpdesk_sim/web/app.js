@@ -4,6 +4,7 @@ const state = {
   currentSessionTickets: [],
   sessions: [],
   profileDefinitions: [],
+  llmRuntimeStatus: null,
   catalog: {
     ticket_types: [],
     departments: [],
@@ -57,6 +58,10 @@ const refs = {
   dailyReportBtn: document.getElementById("dailyReportBtn"),
   weeklyReportBtn: document.getElementById("weeklyReportBtn"),
   reportResult: document.getElementById("reportResult"),
+  llmStatusBadge: document.getElementById("llmStatusBadge"),
+  llmStatusRefreshBtn: document.getElementById("llmStatusRefreshBtn"),
+  wakeEngineBtn: document.getElementById("wakeEngineBtn"),
+  llmStatusResult: document.getElementById("llmStatusResult"),
 };
 
 async function api(path, options = {}) {
@@ -465,6 +470,91 @@ async function loadSessions() {
   }
 }
 
+function renderLlmRuntimeStatus(data, leadSummary = "") {
+  state.llmRuntimeStatus = data;
+
+  let badgeText = "Rule-Based";
+  let badgeKind = "";
+  if (data.configured_engine === "ollama") {
+    if (data.active_mode === "ollama") {
+      badgeText = "Ollama Live";
+      badgeKind = "ok";
+    } else if (String(data.active_mode || "").includes("fallback")) {
+      badgeText = "Ollama Fallback";
+      badgeKind = "warn";
+    } else if (data.active_mode === "error") {
+      badgeText = "Ollama Error";
+      badgeKind = "fail";
+    } else {
+      badgeText = "Ollama Ready";
+      badgeKind = "warn";
+    }
+  }
+
+  refs.llmStatusBadge.textContent = badgeText;
+  refs.llmStatusBadge.className = `badge${badgeKind ? ` ${badgeKind}` : ""}`;
+
+  const wakeReady = Boolean(data.wake_on_lan_ready);
+  const wakeEnabled = Boolean(data.wake_on_lan_enabled);
+  refs.wakeEngineBtn.disabled = !wakeReady;
+  refs.wakeEngineBtn.style.opacity = wakeReady ? "1" : "0.65";
+  refs.wakeEngineBtn.title = wakeReady
+    ? `Send a Wake-on-LAN packet to ${data.llm_host_label || "the LLM host"}`
+    : "Wake-on-LAN is not ready. Set SIM_LLM_HOST_WOL_ENABLED=true and configure SIM_LLM_HOST_MAC.";
+
+  let wakeLine = "Wake control: off";
+  if (wakeReady) {
+    wakeLine = `Wake control: ready for ${data.llm_host_label || "LLM host"} (${data.llm_host_mac_masked || "MAC hidden"}) via ${data.llm_host_wol_broadcast_ip}:${data.llm_host_wol_port}`;
+  } else if (wakeEnabled) {
+    wakeLine = `Wake control: enabled for ${data.llm_host_label || "LLM host"}, but MAC setup is incomplete.`;
+  }
+
+  const lines = [];
+  if (leadSummary) {
+    lines.push(leadSummary);
+  }
+  lines.push(data.english_summary || "LLM runtime status loaded.");
+  lines.push(wakeLine);
+
+  writeHumanAndJson(refs.llmStatusResult, lines.join("\n"), data);
+}
+
+async function loadLlmRuntimeStatus({ quiet = false } = {}) {
+  if (!quiet) {
+    setBusy(refs.llmStatusRefreshBtn, true);
+  }
+  try {
+    const data = await api("/v1/runtime/response-engine", { method: "GET", headers: {} });
+    renderLlmRuntimeStatus(data);
+  } catch (error) {
+    refs.llmStatusBadge.textContent = "LLM Error";
+    refs.llmStatusBadge.className = "badge fail";
+    refs.wakeEngineBtn.disabled = true;
+    refs.wakeEngineBtn.style.opacity = "0.65";
+    writeLog(refs.llmStatusResult, `LLM runtime status failed: ${error.message}`);
+  } finally {
+    if (!quiet) {
+      setBusy(refs.llmStatusRefreshBtn, false);
+    }
+  }
+}
+
+async function wakeEngineHost() {
+  setBusy(refs.wakeEngineBtn, true);
+  try {
+    const wakeData = await api("/v1/runtime/wake-llm-host", {
+      method: "POST",
+      headers: {},
+    });
+    const statusData = await api("/v1/runtime/response-engine", { method: "GET", headers: {} });
+    renderLlmRuntimeStatus(statusData, wakeData.english_summary || "Wake signal sent.");
+  } catch (error) {
+    writeLog(refs.llmStatusResult, `Wake engine failed: ${error.message}`);
+  } finally {
+    setBusy(refs.wakeEngineBtn, false);
+  }
+}
+
 async function loadSessionDetail(sessionId) {
   state.selectedSessionId = sessionId;
   renderSessions();
@@ -788,6 +878,7 @@ async function runPoller() {
     });
     const summary = `Poller checked ${data.tickets_checked ?? 0} ticket(s), posted ${data.replies_sent ?? 0} response(s), closed ${data.tickets_closed ?? 0}.`;
     writeHumanAndJson(refs.actionResult, summary, data);
+    await loadLlmRuntimeStatus({ quiet: true });
     if (state.selectedSessionId) {
       await loadSessionDetail(state.selectedSessionId);
     }
@@ -1036,7 +1127,7 @@ function toggleThemePanel() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadHealth(), loadProfiles(), loadCatalog(), loadSessions()]);
+  await Promise.all([loadHealth(), loadProfiles(), loadCatalog(), loadSessions(), loadLlmRuntimeStatus()]);
   if (state.selectedSessionId) {
     await loadSessionDetail(state.selectedSessionId);
   }
@@ -1055,6 +1146,8 @@ refs.manualGenerateBtn.addEventListener("click", generateManualTickets);
 refs.hintBtn.addEventListener("click", requestHint);
 refs.dailyReportBtn.addEventListener("click", () => loadReport("daily"));
 refs.weeklyReportBtn.addEventListener("click", () => loadReport("weekly"));
+refs.llmStatusRefreshBtn.addEventListener("click", () => loadLlmRuntimeStatus());
+refs.wakeEngineBtn.addEventListener("click", wakeEngineHost);
 refs.showRawJson.addEventListener("change", () => applyRawDisplayMode(refs.showRawJson.value, true));
 refs.manualTierSelect.addEventListener("change", renderScenarioOptions);
 refs.manualTypeSelect.addEventListener("change", renderScenarioOptions);
@@ -1102,7 +1195,7 @@ refreshAll().catch((error) => {
 });
 
 setInterval(() => {
-  loadSessions().catch((error) => {
+  Promise.all([loadSessions(), loadLlmRuntimeStatus({ quiet: true })]).catch((error) => {
     writeLog(refs.actionResult, `Auto-refresh failed: ${error.message}`);
   });
 }, 15000);
