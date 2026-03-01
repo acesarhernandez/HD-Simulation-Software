@@ -4,6 +4,7 @@ const state = {
   currentSessionTickets: [],
   sessions: [],
   profileDefinitions: [],
+  pendingRequests: 0,
   llmRuntimeStatus: null,
   catalog: {
     ticket_types: [],
@@ -19,11 +20,13 @@ const systemColorScheme = window.matchMedia("(prefers-color-scheme: dark)");
 
 const refs = {
   healthBadge: document.getElementById("healthBadge"),
+  requestStatusBadge: document.getElementById("requestStatusBadge"),
   themeLauncher: document.getElementById("themeLauncher"),
   themePanel: document.getElementById("themePanel"),
   themeModeButtons: Array.from(document.querySelectorAll(".theme-mode-btn[data-theme-mode]")),
   showRawJson: document.getElementById("showRawJson"),
   profileSelect: document.getElementById("profileSelect"),
+  profileQuickInfo: document.getElementById("profileQuickInfo"),
   clockInBtn: document.getElementById("clockInBtn"),
   clockOutAllBtn: document.getElementById("clockOutAllBtn"),
   clockOutAllBtnSessions: document.getElementById("clockOutAllBtnSessions"),
@@ -70,7 +73,24 @@ const refs = {
   llmStatusResult: document.getElementById("llmStatusResult"),
 };
 
+function updateRequestStatus() {
+  if (!refs.requestStatusBadge) return;
+
+  if (state.pendingRequests > 0) {
+    refs.requestStatusBadge.textContent =
+      state.pendingRequests === 1 ? "Working..." : `Working (${state.pendingRequests})`;
+    refs.requestStatusBadge.className = "badge warn";
+    return;
+  }
+
+  refs.requestStatusBadge.textContent = "Idle";
+  refs.requestStatusBadge.className = "badge badge-muted";
+}
+
 async function api(path, options = {}) {
+  state.pendingRequests += 1;
+  updateRequestStatus();
+
   const init = {
     ...options,
     headers: {
@@ -79,26 +99,31 @@ async function api(path, options = {}) {
     },
   };
 
-  const response = await fetch(path, init);
-  const raw = await response.text();
+  try {
+    const response = await fetch(path, init);
+    const raw = await response.text();
 
-  let data = null;
-  if (raw) {
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      data = raw;
+    let data = null;
+    if (raw) {
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = raw;
+      }
     }
-  }
 
-  if (!response.ok) {
-    const detail =
-      (data && typeof data === "object" && (data.detail || data.error_human || data.error)) ||
-      `${response.status} ${response.statusText}`;
-    throw new Error(String(detail));
-  }
+    if (!response.ok) {
+      const detail =
+        (data && typeof data === "object" && (data.detail || data.error_human || data.error)) ||
+        `${response.status} ${response.statusText}`;
+      throw new Error(String(detail));
+    }
 
-  return data;
+    return data;
+  } finally {
+    state.pendingRequests = Math.max(0, state.pendingRequests - 1);
+    updateRequestStatus();
+  }
 }
 
 function writeLog(element, payload) {
@@ -133,8 +158,15 @@ function showDeleteBanner(message, kind = "success") {
 
 function setBusy(button, busy) {
   if (!button) return;
+  if (!button.dataset.idleLabel) {
+    button.dataset.idleLabel = button.textContent.trim();
+  }
+
   button.disabled = busy;
-  button.style.opacity = busy ? "0.68" : "1";
+  button.style.opacity = busy ? "0.72" : "1";
+  button.classList.toggle("is-busy", busy);
+  button.setAttribute("aria-busy", busy ? "true" : "false");
+  button.textContent = busy ? button.dataset.busyLabel || "Working..." : button.dataset.idleLabel;
 }
 
 function shouldShowRaw() {
@@ -206,6 +238,41 @@ function renderProfileDefinitions() {
   });
 }
 
+function renderSelectedProfileSummary() {
+  if (!refs.profileQuickInfo) return;
+
+  const selectedName = refs.profileSelect.value;
+  const profile = state.profileDefinitions.find((item) => item.name === selectedName);
+
+  if (!profile) {
+    refs.profileQuickInfo.textContent = "Select a day profile to review how that shift will behave.";
+    return;
+  }
+
+  const tierMix = Object.entries(profile.tier_weights || {})
+    .map(([tier, value]) => `${tier}: ${value}%`)
+    .join(" | ");
+
+  const topTypes = Object.entries(profile.scenario_type_weights || {})
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, 3)
+    .map(([name, value]) => `${name} (${value}%)`)
+    .join(" | ");
+
+  const delivery = profile.trickle_mode
+    ? `Trickle mode is on (${profile.trickle_max_per_tick} ticket max per scheduler run).`
+    : "Tickets are delivered in window bursts.";
+
+  refs.profileQuickInfo.textContent = [
+    `${profile.name}: ${profile.description || "No description set."}`,
+    `Runs for ${profile.duration_hours} hours. Scheduler window: every ${profile.cadence_minutes} minutes, with ${profile.tickets_per_window_min}-${profile.tickets_per_window_max} tickets per window.`,
+    delivery,
+    `Business-hours gate: ${profile.business_hours_only ? "on" : "off"}.`,
+    `Tier mix: ${tierMix || "not set"}.`,
+    `Most likely ticket types: ${topTypes || "not set"}.`,
+  ].join(" ");
+}
+
 function renderSessions() {
   const sessions = [...state.sessions].sort(
     (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
@@ -271,7 +338,8 @@ function renderTickets(tickets) {
     refs.ticketInfoResult.textContent = "Select a ticket to view details.";
     refs.ticketCoachingResult.textContent =
       "Select a closed ticket and use Coach to review how you handled it.";
-    refs.mentorResult.textContent = "Select a ticket and ask for higher-tier guidance here.";
+    refs.mentorResult.textContent =
+      "Select a ticket and ask about troubleshooting, communication, SLA, escalation, documentation, or best practices.";
     return;
   }
 
@@ -290,10 +358,10 @@ function renderTickets(tickets) {
         <td>
           <div class="table-actions">
             <button class="btn use-hint" data-ticket-id="${ticket.id}">Hint</button>
-            <button class="btn coach-ticket" data-ticket-id="${ticket.id}">Coach</button>
-            <button class="btn kb-draft" data-ticket-id="${ticket.id}">KB</button>
-            <button class="btn close-ticket" data-ticket-id="${ticket.id}">Close</button>
-            <button class="btn btn-danger delete-ticket" data-ticket-id="${ticket.id}">Delete</button>
+            <button class="btn coach-ticket" data-ticket-id="${ticket.id}" data-busy-label="Reviewing...">Coach</button>
+            <button class="btn kb-draft" data-ticket-id="${ticket.id}" data-busy-label="Drafting...">KB</button>
+            <button class="btn close-ticket" data-ticket-id="${ticket.id}" data-busy-label="Closing...">Close</button>
+            <button class="btn btn-danger delete-ticket" data-ticket-id="${ticket.id}" data-busy-label="Deleting...">Delete</button>
           </div>
         </td>
       </tr>
@@ -325,7 +393,7 @@ function renderTickets(tickets) {
   refs.ticketTableBody.querySelectorAll(".kb-draft").forEach((button) => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
-      await generateKnowledgeDraft(button.dataset.ticketId);
+      await generateKnowledgeDraft(button.dataset.ticketId, button);
     });
   });
 
@@ -335,21 +403,21 @@ function renderTickets(tickets) {
       const ticketId = button.dataset.ticketId;
       if (!ticketId) return;
       await loadTicketInfo(ticketId);
-      await generateTicketCoaching(ticketId);
+      await generateTicketCoaching(ticketId, button);
     });
   });
 
   refs.ticketTableBody.querySelectorAll(".close-ticket").forEach((button) => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
-      await closeSingleTicket(button.dataset.ticketId);
+      await closeSingleTicket(button.dataset.ticketId, button);
     });
   });
 
   refs.ticketTableBody.querySelectorAll(".delete-ticket").forEach((button) => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
-      await deleteSingleTicket(button.dataset.ticketId);
+      await deleteSingleTicket(button.dataset.ticketId, button);
     });
   });
 }
@@ -461,12 +529,17 @@ async function loadHealth() {
 }
 
 async function loadProfiles() {
+  const currentValue = refs.profileSelect.value;
   const data = await api("/v1/profiles", { method: "GET", headers: {} });
   refs.profileSelect.innerHTML = data.profiles
     .map((name) => `<option value="${name}">${name}</option>`)
     .join("");
+  if (currentValue && data.profiles.includes(currentValue)) {
+    refs.profileSelect.value = currentValue;
+  }
   state.profileDefinitions = data.definitions || [];
   renderProfileDefinitions();
+  renderSelectedProfileSummary();
 }
 
 async function loadCatalog() {
@@ -678,7 +751,7 @@ async function loadTicketInfo(ticketId) {
   refs.hintTicketId.value = ticket.id;
   refs.mentorTicketId.value = ticket.id;
   refs.mentorResult.textContent =
-    "Ask a senior tech what to check next, whether to escalate, or what likely caused the issue.";
+    "Ask a senior tech what to troubleshoot next, how to phrase a response, whether to escalate, how to handle SLA risk, or what to document.";
   refs.ticketCoachingResult.textContent =
     ticket.status === "closed"
       ? "This ticket is closed. Use Coach to generate a post-ticket review."
@@ -766,8 +839,9 @@ async function clockOutAllSessions() {
   }
 }
 
-async function closeSingleTicket(ticketId) {
+async function closeSingleTicket(ticketId, triggerButton = null) {
   if (!ticketId) return;
+  setBusy(triggerButton, true);
   try {
     const data = await api(`/v1/tickets/${ticketId}/close`, {
       method: "POST",
@@ -779,11 +853,14 @@ async function closeSingleTicket(ticketId) {
     }
   } catch (error) {
     writeLog(refs.actionResult, `Close ticket failed: ${error.message}`);
+  } finally {
+    setBusy(triggerButton, false);
   }
 }
 
-async function generateKnowledgeDraft(ticketId) {
+async function generateKnowledgeDraft(ticketId, triggerButton = null) {
   if (!ticketId) return;
+  setBusy(triggerButton, true);
   try {
     const data = await api(`/v1/tickets/${ticketId}/knowledge-draft`, {
       method: "POST",
@@ -801,11 +878,14 @@ async function generateKnowledgeDraft(ticketId) {
     });
   } catch (error) {
     writeLog(refs.actionResult, `KB draft failed: ${error.message}`);
+  } finally {
+    setBusy(triggerButton, false);
   }
 }
 
-async function generateTicketCoaching(ticketId) {
+async function generateTicketCoaching(ticketId, triggerButton = null) {
   if (!ticketId) return;
+  setBusy(triggerButton, true);
   try {
     const data = await api(`/v1/tickets/${ticketId}/coach`, {
       method: "POST",
@@ -831,6 +911,8 @@ async function generateTicketCoaching(ticketId) {
     writeHumanAndJson(refs.ticketCoachingResult, summaryLines.join("\n"), data);
   } catch (error) {
     writeLog(refs.ticketCoachingResult, `Coaching failed: ${error.message}`);
+  } finally {
+    setBusy(triggerButton, false);
   }
 }
 
@@ -866,7 +948,7 @@ async function askMentor() {
   }
 }
 
-async function deleteSingleTicket(ticketId) {
+async function deleteSingleTicket(ticketId, triggerButton = null) {
   if (!ticketId) return;
   const proceed = window.confirm(
     "Delete this ticket from simulator data? This is for cleanup and cannot be undone."
@@ -874,6 +956,7 @@ async function deleteSingleTicket(ticketId) {
   if (!proceed) return;
 
   clearDeleteBanner();
+  setBusy(triggerButton, true);
   try {
     const fallbackClose = Boolean(refs.deleteFallbackClose?.checked);
     const path = fallbackClose
@@ -890,7 +973,8 @@ async function deleteSingleTicket(ticketId) {
       refs.ticketInfoResult.textContent = "Select a ticket to view details.";
       refs.ticketCoachingResult.textContent =
         "Select a closed ticket and use Coach to review how you handled it.";
-      refs.mentorResult.textContent = "Select a ticket and ask for higher-tier guidance here.";
+      refs.mentorResult.textContent =
+        "Select a ticket and ask about troubleshooting, communication, SLA, escalation, documentation, or best practices.";
     }
     if (state.selectedSessionId) {
       await loadSessionDetail(state.selectedSessionId);
@@ -898,6 +982,8 @@ async function deleteSingleTicket(ticketId) {
   } catch (error) {
     writeLog(refs.actionResult, `Delete ticket failed: ${error.message}`);
     showDeleteBanner(`Delete failed: ${error.message}`, "error");
+  } finally {
+    setBusy(triggerButton, false);
   }
 }
 
@@ -956,7 +1042,8 @@ async function deleteAllTicketsInSelectedSession() {
     refs.ticketInfoResult.textContent = "Select a ticket to view details.";
     refs.ticketCoachingResult.textContent =
       "Select a closed ticket and use Coach to review how you handled it.";
-    refs.mentorResult.textContent = "Select a ticket and ask for higher-tier guidance here.";
+    refs.mentorResult.textContent =
+      "Select a ticket and ask about troubleshooting, communication, SLA, escalation, documentation, or best practices.";
     await loadSessionDetail(sessionId);
   } catch (error) {
     writeLog(refs.actionResult, `Delete all tickets failed: ${error.message}`);
@@ -1163,6 +1250,8 @@ async function requestHint() {
 }
 
 async function loadReport(kind) {
+  const button = kind === "weekly" ? refs.weeklyReportBtn : refs.dailyReportBtn;
+  setBusy(button, true);
   const path = kind === "weekly" ? "/v1/reports/weekly" : "/v1/reports/daily";
   try {
     const data = await api(path, { method: "GET", headers: {} });
@@ -1172,6 +1261,8 @@ async function loadReport(kind) {
     writeHumanAndJson(refs.reportResult, summary, data);
   } catch (error) {
     writeLog(refs.reportResult, `Report request failed: ${error.message}`);
+  } finally {
+    setBusy(button, false);
   }
 }
 
@@ -1244,9 +1335,14 @@ function toggleThemePanel() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadHealth(), loadProfiles(), loadCatalog(), loadSessions(), loadLlmRuntimeStatus()]);
-  if (state.selectedSessionId) {
-    await loadSessionDetail(state.selectedSessionId);
+  setBusy(refs.refreshBtn, true);
+  try {
+    await Promise.all([loadHealth(), loadProfiles(), loadCatalog(), loadSessions(), loadLlmRuntimeStatus()]);
+    if (state.selectedSessionId) {
+      await loadSessionDetail(state.selectedSessionId);
+    }
+  } finally {
+    setBusy(refs.refreshBtn, false);
   }
 }
 
@@ -1267,6 +1363,7 @@ refs.llmStatusRefreshBtn.addEventListener("click", () => loadLlmRuntimeStatus())
 refs.wakeEngineBtn.addEventListener("click", wakeEngineHost);
 refs.mentorBtn.addEventListener("click", askMentor);
 refs.showRawJson.addEventListener("change", () => applyRawDisplayMode(refs.showRawJson.value, true));
+refs.profileSelect.addEventListener("change", renderSelectedProfileSummary);
 refs.manualTierSelect.addEventListener("change", renderScenarioOptions);
 refs.manualTypeSelect.addEventListener("change", renderScenarioOptions);
 refs.manualDeptSelect.addEventListener("change", () => {

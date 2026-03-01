@@ -70,6 +70,44 @@ def test_mentor_service_returns_deterministic_guidance_without_llm() -> None:
     assert "missing shared mailbox permission assignment" in str(result["mentor_reply"]).lower()
 
 
+def test_mentor_service_can_coach_on_communication_without_llm() -> None:
+    service = MentorService(
+        llm_enabled=False,
+        ollama_url="http://127.0.0.1:11434",
+        ollama_model="llama3:latest",
+    )
+
+    result = service.request_guidance(
+        _sample_ticket(),
+        _sample_interactions(),
+        "How should I word my reply so it sounds professional and easier for the user to answer?",
+    )
+
+    reply = str(result["mentor_reply"]).lower()
+    assert result["llm_used"] is False
+    assert "keep the reply professional" in reply
+    assert "ask one or two narrow follow-up questions" in reply
+
+
+def test_mentor_service_can_coach_on_sla_without_llm() -> None:
+    service = MentorService(
+        llm_enabled=False,
+        ollama_url="http://127.0.0.1:11434",
+        ollama_model="llama3:latest",
+    )
+
+    result = service.request_guidance(
+        _sample_ticket(),
+        _sample_interactions(),
+        "Am I at risk of missing SLA and what should I do next?",
+    )
+
+    reply = str(result["mentor_reply"]).lower()
+    assert result["llm_used"] is False
+    assert "manage it against the configured sla" in reply
+    assert "do not close the ticket" in reply
+
+
 def test_mentor_service_uses_ollama_when_available(monkeypatch) -> None:
     class FakeResponse:
         def raise_for_status(self) -> None:
