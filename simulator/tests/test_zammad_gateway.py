@@ -55,6 +55,48 @@ def test_create_ticket_prefers_persona_customer_even_with_fallback() -> None:
     assert created_payloads[0]["customer"] == "melissa.brooks@bmm.local"
 
 
+def test_fetch_new_articles_preserves_internal_flag() -> None:
+    gateway = ZammadHttpGateway(
+        base_url="http://zammad.local",
+        token="token",
+        customer_fallback_email="",
+    )
+
+    def fake_request(method: str, path: str, json: dict[str, object] | None = None) -> object:
+        assert method == "GET"
+        assert path == "/api/v1/ticket_articles/by_ticket/134"
+        assert json is None
+        return [
+            {
+                "id": 301,
+                "body": "Public customer message",
+                "sender": "Customer",
+                "internal": False,
+            },
+            {
+                "id": 303,
+                "body": "Internal agent note",
+                "sender": "Agent",
+                "internal": True,
+            },
+            {
+                "id": 304,
+                "body": "Public agent reply",
+                "sender": "Agent",
+                "internal": False,
+            },
+        ]
+
+    gateway._request = fake_request  # type: ignore[method-assign]
+
+    articles = gateway.fetch_new_articles(134, after_article_id=0)
+
+    assert [article.id for article in articles] == [301, 303, 304]
+    assert articles[0].should_trigger_reply is False
+    assert articles[1].should_trigger_reply is False
+    assert articles[2].should_trigger_reply is True
+
+
 def test_create_ticket_uses_fallback_when_persona_customer_resolution_fails() -> None:
     gateway = ZammadHttpGateway(
         base_url="http://zammad.local",

@@ -47,7 +47,7 @@ class PollerService:
             max_article_id = ticket.last_seen_article_id
             for article in articles:
                 max_article_id = max(max_article_id, article.id)
-                if not article.is_agent:
+                if not article.should_trigger_reply:
                     continue
 
                 self.repository.add_interaction(

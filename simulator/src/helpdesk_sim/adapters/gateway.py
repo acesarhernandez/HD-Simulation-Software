@@ -11,11 +11,16 @@ class TicketArticle:
     id: int
     body: str
     sender: str
+    internal: bool = False
 
     @property
     def is_agent(self) -> bool:
         sender_lower = self.sender.lower()
         return "agent" in sender_lower or "system" in sender_lower
+
+    @property
+    def should_trigger_reply(self) -> bool:
+        return self.is_agent and not self.internal
 
 
 class ZammadGateway(Protocol):

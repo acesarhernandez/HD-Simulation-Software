@@ -164,7 +164,15 @@ class ZammadHttpGateway:
                 continue
             body = str(item.get("body") or item.get("content") or "").strip()
             sender = str(item.get("sender") or item.get("from") or "unknown")
-            articles.append(TicketArticle(id=article_id, body=body, sender=sender))
+            internal = bool(item.get("internal", False))
+            articles.append(
+                TicketArticle(
+                    id=article_id,
+                    body=body,
+                    sender=sender,
+                    internal=internal,
+                )
+            )
         return sorted(articles, key=lambda article: article.id)
 
     def post_customer_reply(self, zammad_ticket_id: int, body: str, subject: str) -> None:
