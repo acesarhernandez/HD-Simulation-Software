@@ -3,7 +3,11 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from helpdesk_sim.domain.models import ClockInRequest, HintRequest, ManualTicketRequest
-from helpdesk_sim.services.wake_on_lan import mask_mac_address, send_magic_packet
+from helpdesk_sim.services.wake_on_lan import (
+    is_tcp_endpoint_reachable,
+    mask_mac_address,
+    send_magic_packet,
+)
 
 router = APIRouter()
 
@@ -202,6 +206,36 @@ def generate_knowledge_draft(request: Request, ticket_id: str) -> dict[str, obje
         "ready": True,
         "english_summary": "KB draft generated. Review and copy into your knowledge base.",
         "markdown": markdown,
+    }
+
+
+@router.post("/v1/tickets/{ticket_id}/coach")
+def generate_ticket_coaching(request: Request, ticket_id: str) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    ticket = runtime.repository.get_ticket(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="ticket not found")
+
+    if ticket.status.value != "closed" or not ticket.score:
+        return {
+            "ticket_id": ticket_id,
+            "ready": False,
+            "coaching_note": "",
+            "deterministic_note": "",
+            "strengths": [],
+            "focus_areas": [],
+            "documentation_critique": "",
+            "llm_used": False,
+            "last_error": None,
+            "english_summary": "Close the ticket first so the simulator has a final grade to coach against.",
+        }
+
+    interactions = runtime.repository.list_interactions(ticket_id)
+    payload = runtime.coaching_service.generate_ticket_coaching(ticket=ticket, interactions=interactions)
+    return {
+        "ticket_id": ticket_id,
+        "ready": True,
+        **payload,
     }
 
 
@@ -567,6 +601,7 @@ def _response_engine_summary(status: dict[str, object]) -> str:
 
 
 def _wake_on_lan_status(settings) -> dict[str, object]:
+    reachable, endpoint_host, endpoint_port = is_tcp_endpoint_reachable(settings.ollama_url)
     mac = settings.llm_host_mac.strip()
     masked_mac = None
     mac_valid = False
@@ -580,6 +615,9 @@ def _wake_on_lan_status(settings) -> dict[str, object]:
     ready = bool(settings.llm_host_wol_enabled and mac_valid)
     return {
         "llm_host_label": settings.llm_host_label,
+        "llm_host_reachable": reachable,
+        "llm_host_endpoint_host": endpoint_host,
+        "llm_host_endpoint_port": endpoint_port,
         "wake_on_lan_enabled": settings.llm_host_wol_enabled,
         "wake_on_lan_ready": ready,
         "llm_host_mac_masked": masked_mac,
@@ -592,9 +630,19 @@ def _wake_on_lan_status(settings) -> dict[str, object]:
 def _wake_summary(status: dict[str, object]) -> str:
     enabled = bool(status.get("wake_on_lan_enabled"))
     ready = bool(status.get("wake_on_lan_ready"))
+    reachable = bool(status.get("llm_host_reachable"))
     label = str(status.get("llm_host_label", "LLM host"))
+    host = status.get("llm_host_endpoint_host")
+    port = status.get("llm_host_endpoint_port")
+    endpoint = f"{host}:{port}" if host and port else None
+    if reachable:
+        if endpoint:
+            return f"{label} is reachable at {endpoint}. Wake-on-LAN is optional right now."
+        return f"{label} is reachable. Wake-on-LAN is optional right now."
     if ready:
-        return f"Wake-on-LAN is ready for {label}."
+        if endpoint:
+            return f"{label} is not reachable at {endpoint}. Wake-on-LAN is ready."
+        return f"{label} is not reachable. Wake-on-LAN is ready."
     if enabled:
         return f"Wake-on-LAN is enabled for {label}, but MAC configuration is incomplete or invalid."
     return f"Wake-on-LAN is off for {label}."

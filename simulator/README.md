@@ -125,6 +125,7 @@ Open API docs:
 - [http://localhost:8079/ui/guide](http://localhost:8079/ui/guide) (Plain-language guide)
 - [http://localhost:8079/v1/runtime/response-engine](http://localhost:8079/v1/runtime/response-engine) (Response engine status)
 - `POST /v1/runtime/wake-llm-host` (Optional Wake-on-LAN trigger for the LLM PC)
+- `POST /v1/tickets/<ticket_id>/coach` (Post-close coaching note grounded in deterministic grading data)
 
 Dashboard highlights:
 
@@ -134,6 +135,7 @@ Dashboard highlights:
 - Ticket detail actions for close/delete (single and bulk) plus KB draft generation for closed tickets.
 - Ticket delete actions now attempt linked Zammad ticket deletion first, then remove simulator records.
 - Hint requests directly in UI with penalty visibility plus plain-English summaries.
+- LLM runtime status now reports whether the configured LLM host appears reachable right now, not just whether Wake-on-LAN is configured.
 - Report cards in plain English plus raw JSON for debugging/auditing.
 - Theme selector: `Auto` (follows system), `Light`, or `Dark`.
 - `Clock Out All` button to end every active shift in one action.
@@ -297,6 +299,12 @@ Linked knowledge articles for a ticket:
 
 ```bash
 curl http://localhost:8079/v1/tickets/<ticket_id>/knowledge-articles
+```
+
+Post-close coaching note for a completed ticket:
+
+```bash
+curl -X POST http://localhost:8079/v1/tickets/<ticket_id>/coach
 ```
 
 ## Scenario Authoring

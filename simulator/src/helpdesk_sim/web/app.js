@@ -496,6 +496,7 @@ function renderLlmRuntimeStatus(data, leadSummary = "") {
 
   const wakeReady = Boolean(data.wake_on_lan_ready);
   const wakeEnabled = Boolean(data.wake_on_lan_enabled);
+  const hostReachable = Boolean(data.llm_host_reachable);
   refs.wakeEngineBtn.disabled = !wakeReady;
   refs.wakeEngineBtn.style.opacity = wakeReady ? "1" : "0.65";
   refs.wakeEngineBtn.title = wakeReady
@@ -509,11 +510,17 @@ function renderLlmRuntimeStatus(data, leadSummary = "") {
     wakeLine = `Wake control: enabled for ${data.llm_host_label || "LLM host"}, but MAC setup is incomplete.`;
   }
 
+  let hostLine = "LLM host: reachability unknown";
+  if (data.llm_host_endpoint_host && data.llm_host_endpoint_port) {
+    hostLine = `LLM host: ${hostReachable ? "online" : "offline"} at ${data.llm_host_endpoint_host}:${data.llm_host_endpoint_port}`;
+  }
+
   const lines = [];
   if (leadSummary) {
     lines.push(leadSummary);
   }
   lines.push(data.english_summary || "LLM runtime status loaded.");
+  lines.push(hostLine);
   lines.push(wakeLine);
 
   writeHumanAndJson(refs.llmStatusResult, lines.join("\n"), data);

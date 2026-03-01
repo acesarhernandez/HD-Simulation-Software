@@ -10,6 +10,7 @@ from helpdesk_sim.config import Settings
 from helpdesk_sim.repositories.sqlite_store import SimulatorRepository
 from helpdesk_sim.services.background_worker import BackgroundWorkers
 from helpdesk_sim.services.catalog_service import CatalogService
+from helpdesk_sim.services.coaching_service import CoachingService
 from helpdesk_sim.services.generation_service import GenerationService
 from helpdesk_sim.services.grading_service import GradingService
 from helpdesk_sim.services.hint_service import HintService
@@ -34,6 +35,7 @@ class Runtime:
     scheduler_service: SchedulerService
     poller_service: PollerService
     hint_service: HintService
+    coaching_service: CoachingService
     report_service: ReportService
     workers: BackgroundWorkers
 
@@ -66,6 +68,11 @@ def build_runtime(settings: Settings, cwd: Path) -> Runtime:
         grading_service=grading_service,
     )
     hint_service = HintService(repository=repository)
+    coaching_service = CoachingService(
+        llm_enabled=settings.response_engine == "ollama",
+        ollama_url=settings.ollama_url,
+        ollama_model=settings.ollama_model,
+    )
     report_service = ReportService(repository=repository)
 
     workers = BackgroundWorkers(
@@ -84,6 +91,7 @@ def build_runtime(settings: Settings, cwd: Path) -> Runtime:
         scheduler_service=scheduler_service,
         poller_service=poller_service,
         hint_service=hint_service,
+        coaching_service=coaching_service,
         report_service=report_service,
         workers=workers,
     )

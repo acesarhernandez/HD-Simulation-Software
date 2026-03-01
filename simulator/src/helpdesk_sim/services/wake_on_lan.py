@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import socket
+from urllib.parse import urlparse
 
 
 def normalize_mac_address(mac_address: str) -> str:
@@ -38,3 +39,39 @@ def send_magic_packet(
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.sendto(packet, (broadcast_ip, int(port)))
     return len(packet)
+
+
+def parse_endpoint_host_port(endpoint_url: str) -> tuple[str, int]:
+    raw = (endpoint_url or "").strip()
+    if not raw:
+        raise ValueError("endpoint URL is empty")
+
+    parsed = urlparse(raw if "://" in raw else f"http://{raw}")
+    host = parsed.hostname or ""
+    if not host:
+        raise ValueError("endpoint URL does not include a valid host")
+
+    if parsed.port is not None:
+        port = parsed.port
+    elif parsed.scheme == "https":
+        port = 443
+    else:
+        port = 80
+
+    return host, int(port)
+
+
+def is_tcp_endpoint_reachable(
+    endpoint_url: str,
+    timeout_seconds: float = 1.0,
+) -> tuple[bool, str | None, int | None]:
+    try:
+        host, port = parse_endpoint_host_port(endpoint_url)
+    except ValueError:
+        return False, None, None
+
+    try:
+        with socket.create_connection((host, port), timeout=timeout_seconds):
+            return True, host, port
+    except OSError:
+        return False, host, port
