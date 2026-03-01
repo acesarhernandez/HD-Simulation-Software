@@ -35,7 +35,6 @@ Planned `v2` enhancements:
 - Optional LLM documentation critique after ticket closure.
 - Optional professionalism critique that flags hostile or clearly unprofessional analyst language.
 - Optional mentor/escalation chat panel that simulates consulting a senior tech.
-- Optional LLM rewrite of the opening ticket wording so repetitive scenarios can feel more natural without changing the real issue.
 - Hint wording that can be rephrased by the LLM, while still being sourced from deterministic hidden truth.
 
 ## Repository Contents
@@ -58,8 +57,10 @@ Key capabilities:
 - Hint mode with penalty controls.
 - Daily and weekly performance summaries.
 - Built-in dashboard at `http://localhost:8079/ui` with light/dark/auto theme and mass clock-out.
-- Ticket detail includes built-in coaching actions, and the dashboard includes a mentor console for internal escalation guidance.
+- Shift Control now includes a compact day-profile quick look, while full profile comparisons stay tucked behind an inline expander.
+- Ticket detail includes built-in coaching actions, and the dashboard includes a mentor console for internal escalation guidance, communication coaching, SLA guidance, escalation decisions, and documentation tips.
 - LLM runtime now includes a small PC online/offline indicator based on whether the configured LLM host is reachable.
+- Dashboard actions show visible loading states so you can see when the LLM is generating, the poller is running, or the PC wake request is being sent.
 - Plain-language guide at `http://localhost:8079/ui/guide`.
 - Extension point for a remote response engine in v2.
 

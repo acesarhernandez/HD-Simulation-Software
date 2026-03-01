@@ -25,6 +25,7 @@ V2 keeps that foundation and adds optional LLM behavior where it improves realis
 - **Adaptive hints/coaching:** hint text can adapt to your actual troubleshooting steps.
 - **Richer closure feedback:** explanation quality can improve while deterministic score math stays intact.
 - **Professionalism review:** analyst tone can be checked and called out in post-close coaching.
+- **Mentor operations guidance:** the mentor path can coach on communication, SLA, escalation, documentation, and help desk best practices, not just technical fixes.
 - **Scenario expression variety:** same underlying truth, but more variation in ticket wording and user tone.
 - **Optional wake control:** the UI can expose a Wake-on-LAN action for the LLM host PC when configured.
 
@@ -48,6 +49,7 @@ This keeps the simulator realistic without letting AI drift break scoring, troub
 - Optional LLM documentation critique so post-close feedback can assess note quality and communication.
 - Optional professionalism critique so post-close feedback can flag hostile or clearly inappropriate analyst replies.
 - Optional mentor/escalation chat panel in the UI to simulate consulting a senior tech or sysadmin.
+- Optional mentor guidance that can answer ticket-operation questions about wording, SLA handling, escalation decisions, triage, and documentation while staying grounded in the selected ticket.
 - Hint responses that stay grounded in the structured hint bank, but can be reworded by the LLM into more natural coaching language.
 
 ## What v1 Includes
@@ -64,7 +66,7 @@ This keeps the simulator realistic without letting AI drift break scoring, troub
 - SLA-aware grading model and performance reports.
 - Knowledge article links at scenario level (backend-ready for KB workflows).
 - New simulator-created tickets are sent to Zammad as `new` and unassigned.
-- Dashboard includes day-profile definitions and manual ticket generation by filters.
+- Dashboard includes a compact day-profile quick look inside Shift Control plus manual ticket generation by filters.
 - Dashboard includes mass clock-out, light/dark/auto theme toggle, and readable hint/report summaries with raw JSON.
 - Trickle delivery mode enabled by default so tickets arrive gradually instead of all at once.
 - Optional v2 response engine integration point for remote Ollama.
@@ -136,7 +138,8 @@ Open API docs:
 
 Dashboard highlights:
 
-- Day profile cards that explain cadence, volume, tier mix, and business-hours behavior.
+- Shift Control includes a compact day-profile quick look, with the full profile comparison hidden behind an inline expander.
+- Active sessions are surfaced beside manual generation so live shift selection stays close to ticket creation.
 - Manual ticket generation controls by session, tier, ticket type, department, persona, or scenario.
 - Ticket detail panel showing operational metadata, recent interactions, and linked knowledge articles.
 - Ticket detail actions for close/delete (single and bulk) plus KB draft generation for closed tickets.
@@ -145,8 +148,9 @@ Dashboard highlights:
 - Hint requests directly in UI with penalty visibility plus plain-English summaries.
 - LLM runtime status now reports whether the configured LLM host appears reachable right now, not just whether Wake-on-LAN is configured.
 - LLM runtime includes a dedicated PC online/offline badge based on LLM host reachability.
+- A top-level request badge and per-button busy states show when the UI is actively polling, generating, asking the mentor, or sending a wake request.
 - Wake-on-LAN works best when the simulator process sending the packet is on the same LAN as the target PC. A remote Mac instance will usually not be able to send a directed broadcast to your home LAN.
-- A dedicated `Mentor Console` lets you ask for higher-tier guidance on a selected ticket without affecting the simulated end-user conversation.
+- A dedicated `Mentor Console` lets you ask for higher-tier guidance on a selected ticket without affecting the simulated end-user conversation, including troubleshooting, communication, SLA, escalation, and documentation questions.
 - Report cards in plain English plus raw JSON for debugging/auditing.
 - Theme selector: `Auto` (follows system), `Light`, or `Dark`.
 - `Clock Out All` button to end every active shift in one action.
