@@ -22,6 +22,7 @@ Operations toolkit for building and running a realistic help desk training envir
 The `v2` branch keeps the simulator technically grounded by separating deterministic truth from optional AI behavior.
 
 - Ticket creation remains owned by the structured simulator engine.
+- Opening ticket wording can be optionally rewritten by the LLM, but the selected scenario and hidden truth stay unchanged.
 - Hidden truth, scoring rules, and valid fixes remain deterministic and authored.
 - The LLM improves realism, but it does not invent root causes on the fly.
 - If the LLM is unavailable, the simulator must continue to function in `v1`-style fallback mode.
@@ -34,6 +35,7 @@ Planned `v2` enhancements:
 - Optional LLM documentation critique after ticket closure.
 - Optional professionalism critique that flags hostile or clearly unprofessional analyst language.
 - Optional mentor/escalation chat panel that simulates consulting a senior tech.
+- Optional LLM rewrite of the opening ticket wording so repetitive scenarios can feel more natural without changing the real issue.
 - Hint wording that can be rephrased by the LLM, while still being sourced from deterministic hidden truth.
 
 ## Repository Contents
@@ -57,6 +59,7 @@ Key capabilities:
 - Daily and weekly performance summaries.
 - Built-in dashboard at `http://localhost:8079/ui` with light/dark/auto theme and mass clock-out.
 - Ticket detail includes built-in coaching actions, and the dashboard includes a mentor console for internal escalation guidance.
+- LLM runtime now includes a small PC online/offline indicator based on whether the configured LLM host is reachable.
 - Plain-language guide at `http://localhost:8079/ui/guide`.
 - Extension point for a remote response engine in v2.
 

@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.1:8b"
     ollama_fallback_to_rule_based: bool = True
+    ollama_rewrite_opening_tickets: bool = True
     llm_host_label: str = "LLM PC"
     llm_host_wol_enabled: bool = False
     llm_host_mac: str = ""

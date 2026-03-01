@@ -3,6 +3,8 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
+import httpx
+
 from helpdesk_sim.domain.models import GeneratedTicket, SessionProfile, TicketTier
 from helpdesk_sim.services.catalog_service import CatalogService
 
@@ -11,6 +13,11 @@ from helpdesk_sim.services.catalog_service import CatalogService
 class GenerationService:
     catalog: CatalogService
     rng: random.Random = random.Random()
+    llm_enabled: bool = False
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "llama3.1:8b"
+    rewrite_opening_tickets: bool = True
+    timeout_seconds: float = 20.0
 
     def build_ticket(
         self,
@@ -39,6 +46,13 @@ class GenerationService:
 
         subject = scenario.title
         body = scenario.customer_problem
+        if self.llm_enabled and self.rewrite_opening_tickets:
+            body = self._rewrite_opening_body(
+                subject=subject,
+                body=body,
+                scenario=scenario,
+                persona=persona,
+            )
 
         hidden_truth = {
             "scenario_id": scenario.id,
@@ -60,6 +74,9 @@ class GenerationService:
                 "technical_level": persona.technical_level,
                 "tone": persona.tone,
             },
+            "template_subject": scenario.title,
+            "template_body": scenario.customer_problem,
+            "opening_body_source": "llm_rewrite" if body != scenario.customer_problem else "template",
         }
 
         return GeneratedTicket(
@@ -78,3 +95,53 @@ class GenerationService:
         tiers = list(profile.tier_weights.keys())
         weights = [profile.tier_weights[tier] for tier in tiers]
         return self.rng.choices(tiers, weights=weights, k=1)[0]
+
+    def _rewrite_opening_body(
+        self,
+        subject,
+        body: str,
+        scenario,
+        persona,
+    ) -> str:
+        variation_style = self.rng.choice(
+            [
+                "Lead with the user impact first.",
+                "Lead with the blocked task first.",
+                "Lead with the device or work context first.",
+                "Keep it brief and direct.",
+            ]
+        )
+        prompt = "\n".join(
+            [
+                "You are rewriting the opening message of an IT help desk ticket.",
+                "You are not changing the technical issue. You are only rewriting the wording.",
+                "Do not invent a new root cause, new system, or new scope.",
+                "Keep it realistic, concise, and natural.",
+                "Write 1 to 3 sentences. No greeting. No signature.",
+                variation_style,
+                f"Ticket subject: {subject}",
+                f"Ticket type: {scenario.ticket_type}",
+                f"Base opening message: {body}",
+                f"Persona department: {persona.role}",
+                f"Persona technical level: {persona.technical_level}",
+                f"Persona tone: {persona.tone}",
+                f"Known safe user-facing clues: {scenario.clue_map}",
+                "Return only the rewritten opening message.",
+            ]
+        )
+        payload = {
+            "model": self.ollama_model,
+            "prompt": prompt,
+            "stream": False,
+        }
+        try:
+            with httpx.Client(base_url=self.ollama_url, timeout=self.timeout_seconds) as client:
+                response = client.post("/api/generate", json=payload)
+                response.raise_for_status()
+                data = response.json()
+            text = str(data.get("response", "")).strip()
+            if not text:
+                raise RuntimeError("Ollama returned an empty opening rewrite")
+            return text
+        except Exception:
+            return body

@@ -20,6 +20,7 @@ V1 already covers queue generation, ticket injection, poller loops, hints, scori
 V2 keeps that foundation and adds optional LLM behavior where it improves realism:
 
 - **Natural customer dialog:** less canned follow-up phrasing, better continuity across replies.
+- **Opening ticket variation:** the initial ticket body can be rewritten by the LLM while the same scenario and hidden truth remain in force.
 - **Conversation continuity:** recent ticket interactions can be included in the LLM prompt for better follow-up consistency.
 - **Adaptive hints/coaching:** hint text can adapt to your actual troubleshooting steps.
 - **Richer closure feedback:** explanation quality can improve while deterministic score math stays intact.
@@ -67,6 +68,7 @@ This keeps the simulator realistic without letting AI drift break scoring, troub
 - Dashboard includes mass clock-out, light/dark/auto theme toggle, and readable hint/report summaries with raw JSON.
 - Trickle delivery mode enabled by default so tickets arrive gradually instead of all at once.
 - Optional v2 response engine integration point for remote Ollama.
+- Optional opening-message rewrite in `v2` so initial ticket bodies can vary without changing scenario truth.
 
 ## Architecture
 
@@ -142,6 +144,7 @@ Dashboard highlights:
 - Ticket delete actions now attempt linked Zammad ticket deletion first, then remove simulator records.
 - Hint requests directly in UI with penalty visibility plus plain-English summaries.
 - LLM runtime status now reports whether the configured LLM host appears reachable right now, not just whether Wake-on-LAN is configured.
+- LLM runtime includes a dedicated PC online/offline badge based on LLM host reachability.
 - Wake-on-LAN works best when the simulator process sending the packet is on the same LAN as the target PC. A remote Mac instance will usually not be able to send a directed broadcast to your home LAN.
 - A dedicated `Mentor Console` lets you ask for higher-tier guidance on a selected ticket without affecting the simulated end-user conversation.
 - Report cards in plain English plus raw JSON for debugging/auditing.
@@ -202,6 +205,7 @@ Environment variables use the `SIM_` prefix.
 - `SIM_OLLAMA_URL`: remote Ollama endpoint for v2.
 - `SIM_OLLAMA_MODEL`: model name for the remote LLM.
 - `SIM_OLLAMA_FALLBACK_TO_RULE_BASED`: if `true`, Ollama failures fall back to rule-based replies.
+- `SIM_OLLAMA_REWRITE_OPENING_TICKETS`: if `true`, `v2` can rewrite the opening ticket body with the LLM while keeping the same hidden truth.
 - `SIM_LLM_HOST_LABEL`: UI label for the optional LLM host machine.
 - `SIM_LLM_HOST_WOL_ENABLED`: enables the Wake-on-LAN button and backend endpoint.
 - `SIM_LLM_HOST_MAC`: target MAC address for the LLM host (use the physical Ethernet adapter MAC if the PC wakes over wired LAN).

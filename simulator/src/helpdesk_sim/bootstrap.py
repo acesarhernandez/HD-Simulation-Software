@@ -56,7 +56,13 @@ def build_runtime(settings: Settings, cwd: Path) -> Runtime:
     response_engine = _build_response_engine(settings)
 
     session_service = SessionService(repository=repository, catalog=catalog)
-    generation_service = GenerationService(catalog=catalog)
+    generation_service = GenerationService(
+        catalog=catalog,
+        llm_enabled=settings.response_engine == "ollama",
+        ollama_url=settings.ollama_url,
+        ollama_model=settings.ollama_model,
+        rewrite_opening_tickets=settings.ollama_rewrite_opening_tickets,
+    )
     scheduler_service = SchedulerService(
         repository=repository,
         generation_service=generation_service,

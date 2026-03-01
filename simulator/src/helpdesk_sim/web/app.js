@@ -64,6 +64,7 @@ const refs = {
   weeklyReportBtn: document.getElementById("weeklyReportBtn"),
   reportResult: document.getElementById("reportResult"),
   llmStatusBadge: document.getElementById("llmStatusBadge"),
+  llmHostBadge: document.getElementById("llmHostBadge"),
   llmStatusRefreshBtn: document.getElementById("llmStatusRefreshBtn"),
   wakeEngineBtn: document.getElementById("wakeEngineBtn"),
   llmStatusResult: document.getElementById("llmStatusResult"),
@@ -517,6 +518,15 @@ function renderLlmRuntimeStatus(data, leadSummary = "") {
   const wakeReady = Boolean(data.wake_on_lan_ready);
   const wakeEnabled = Boolean(data.wake_on_lan_enabled);
   const hostReachable = Boolean(data.llm_host_reachable);
+  if (refs.llmHostBadge) {
+    if (data.llm_host_endpoint_host) {
+      refs.llmHostBadge.textContent = hostReachable ? "PC Online" : "PC Offline";
+      refs.llmHostBadge.className = `badge ${hostReachable ? "ok" : "fail"}`;
+    } else {
+      refs.llmHostBadge.textContent = "PC Unknown";
+      refs.llmHostBadge.className = "badge warn";
+    }
+  }
   refs.wakeEngineBtn.disabled = !wakeReady;
   refs.wakeEngineBtn.style.opacity = wakeReady ? "1" : "0.65";
   refs.wakeEngineBtn.title = wakeReady
@@ -556,6 +566,10 @@ async function loadLlmRuntimeStatus({ quiet = false } = {}) {
   } catch (error) {
     refs.llmStatusBadge.textContent = "LLM Error";
     refs.llmStatusBadge.className = "badge fail";
+    if (refs.llmHostBadge) {
+      refs.llmHostBadge.textContent = "PC Unknown";
+      refs.llmHostBadge.className = "badge warn";
+    }
     refs.wakeEngineBtn.disabled = true;
     refs.wakeEngineBtn.style.opacity = "0.65";
     writeLog(refs.llmStatusResult, `LLM runtime status failed: ${error.message}`);
