@@ -17,6 +17,24 @@ Operations toolkit for building and running a realistic help desk training envir
 | Grading feedback | Deterministic scoring and plain-English summaries | Same deterministic scoring, plus optional LLM coaching notes |
 | Deployment model | Runs fully on homelab (no LLM required) | Keeps homelab backend and calls remote LLM API (for example Ollama) |
 
+## V2 Design Rules
+
+The `v2` branch keeps the simulator technically grounded by separating deterministic truth from optional AI behavior.
+
+- Ticket creation remains owned by the structured simulator engine.
+- Hidden truth, scoring rules, and valid fixes remain deterministic and authored.
+- The LLM improves realism, but it does not invent root causes on the fly.
+- If the LLM is unavailable, the simulator must continue to function in `v1`-style fallback mode.
+
+Planned `v2` enhancements:
+
+- LLM-assisted conversation after analyst replies.
+- Optional LLM rewrite of the opening ticket wording while preserving the same hidden truth.
+- Optional LLM coaching notes layered on top of deterministic grading.
+- Optional LLM documentation critique after ticket closure.
+- Optional mentor/escalation chat panel that simulates consulting a senior tech.
+- Hint wording that can be rephrased by the LLM, while still being sourced from deterministic hidden truth.
+
 ## Repository Contents
 
 - [`docs/`](docs): operational runbooks, audit checklists, and templates.

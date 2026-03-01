@@ -284,7 +284,7 @@ def test_create_ticket_sets_new_state_and_unassigned_owner_when_available() -> N
     assert created_id == 104
     assert created_payloads
     payload = created_payloads[0]
-    assert payload["owner_id"] == 1
+    assert "owner_id" not in payload
     assert payload["state"] == "new"
     assert payload["state_id"] == 1
 

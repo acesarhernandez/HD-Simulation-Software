@@ -26,6 +26,27 @@ V2 keeps that foundation and adds optional LLM behavior where it improves realis
 - **Scenario expression variety:** same underlying truth, but more variation in ticket wording and user tone.
 - **Optional wake control:** the UI can expose a Wake-on-LAN action for the LLM host PC when configured.
 
+## V2 Design Rules
+
+The `v2` branch uses the LLM as an enhancement layer, not as the source of truth.
+
+- Ticket creation remains driven by the existing structured scenario engine.
+- Hidden truth remains authored, deterministic, and technically accurate.
+- The LLM does not invent arbitrary root causes, fixes, or grading rules.
+- Deterministic grading remains the authoritative score.
+- If the LLM is offline or returns weak output, the simulator falls back safely to `v1`-style behavior.
+
+This keeps the simulator realistic without letting AI drift break scoring, troubleshooting validity, or scenario integrity.
+
+## Planned V2 Enhancements
+
+- Optional LLM rewrite of opening ticket language for more natural variation without changing the underlying scenario.
+- Expanded structured scenario dimensions (device, location, urgency, business context, user tone) so ticket streams feel less repetitive before any freeform AI variation is applied.
+- Optional LLM coaching notes attached to deterministic grading results.
+- Optional LLM documentation critique so post-close feedback can assess note quality and communication.
+- Optional mentor/escalation chat panel in the UI to simulate consulting a senior tech or sysadmin.
+- Hint responses that stay grounded in the structured hint bank, but can be reworded by the LLM into more natural coaching language.
+
 ## What v1 Includes
 
 - Session profiles (`normal_day`, `busy_day`, `outage_day`, `tier1_focus`, `tier2_focus`, `sysadmin_focus`, `manual_only`) with clock-in style operation.
@@ -173,7 +194,7 @@ Environment variables use the `SIM_` prefix.
 - `SIM_OLLAMA_FALLBACK_TO_RULE_BASED`: if `true`, Ollama failures fall back to rule-based replies.
 - `SIM_LLM_HOST_LABEL`: UI label for the optional LLM host machine.
 - `SIM_LLM_HOST_WOL_ENABLED`: enables the Wake-on-LAN button and backend endpoint.
-- `SIM_LLM_HOST_MAC`: target MAC address for the LLM host.
+- `SIM_LLM_HOST_MAC`: target MAC address for the LLM host (use the physical Ethernet adapter MAC if the PC wakes over wired LAN).
 - `SIM_LLM_HOST_WOL_BROADCAST_IP`: broadcast IP used to send the magic packet.
 - `SIM_LLM_HOST_WOL_PORT`: UDP port used for Wake-on-LAN (commonly `7` or `9`).
 - `SIM_DB_PATH`: SQLite file path.

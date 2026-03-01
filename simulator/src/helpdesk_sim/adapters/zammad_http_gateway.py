@@ -43,7 +43,6 @@ class ZammadHttpGateway:
             "title": ticket.subject,
             "group": self.group_mapping[ticket.tier],
             "customer": customer_email,
-            "owner_id": 1,
             "state": "new",
             "priority": self._map_priority(ticket.priority),
             "article": {
