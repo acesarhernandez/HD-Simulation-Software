@@ -56,6 +56,7 @@ Key capabilities:
 - Hint mode with penalty controls.
 - Daily and weekly performance summaries.
 - Built-in dashboard at `http://localhost:8079/ui` with light/dark/auto theme and mass clock-out.
+- Ticket detail includes built-in coaching actions, and the dashboard includes a mentor console for internal escalation guidance.
 - Plain-language guide at `http://localhost:8079/ui/guide`.
 - Extension point for a remote response engine in v2.
 

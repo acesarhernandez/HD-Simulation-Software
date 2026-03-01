@@ -130,6 +130,7 @@ Open API docs:
 - [http://localhost:8079/v1/runtime/response-engine](http://localhost:8079/v1/runtime/response-engine) (Response engine status)
 - `POST /v1/runtime/wake-llm-host` (Optional Wake-on-LAN trigger for the LLM PC)
 - `POST /v1/tickets/<ticket_id>/coach` (Post-close coaching note grounded in deterministic grading data)
+- `POST /v1/tickets/<ticket_id>/mentor` (Internal mentor / escalation guidance for the selected ticket)
 
 Dashboard highlights:
 
@@ -137,10 +138,12 @@ Dashboard highlights:
 - Manual ticket generation controls by session, tier, ticket type, department, persona, or scenario.
 - Ticket detail panel showing operational metadata, recent interactions, and linked knowledge articles.
 - Ticket detail actions for close/delete (single and bulk) plus KB draft generation for closed tickets.
+- Ticket detail includes a `Coach` action that sends a closed ticket to the coaching endpoint and shows the result in the same panel.
 - Ticket delete actions now attempt linked Zammad ticket deletion first, then remove simulator records.
 - Hint requests directly in UI with penalty visibility plus plain-English summaries.
 - LLM runtime status now reports whether the configured LLM host appears reachable right now, not just whether Wake-on-LAN is configured.
 - Wake-on-LAN works best when the simulator process sending the packet is on the same LAN as the target PC. A remote Mac instance will usually not be able to send a directed broadcast to your home LAN.
+- A dedicated `Mentor Console` lets you ask for higher-tier guidance on a selected ticket without affecting the simulated end-user conversation.
 - Report cards in plain English plus raw JSON for debugging/auditing.
 - Theme selector: `Auto` (follows system), `Light`, or `Dark`.
 - `Clock Out All` button to end every active shift in one action.
@@ -316,6 +319,14 @@ Post-close coaching note for a completed ticket:
 
 ```bash
 curl -X POST http://localhost:8079/v1/tickets/<ticket_id>/coach
+```
+
+Mentor / escalation guidance for an active or closed ticket:
+
+```bash
+curl -X POST http://localhost:8079/v1/tickets/<ticket_id>/mentor \
+  -H "Content-Type: application/json" \
+  -d '{"message":"What would you check next before I escalate this?"}'
 ```
 
 ## Scenario Authoring

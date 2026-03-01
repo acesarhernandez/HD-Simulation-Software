@@ -51,6 +51,11 @@ const refs = {
   deleteStatusBanner: document.getElementById("deleteStatusBanner"),
   ticketTableBody: document.getElementById("ticketTableBody"),
   ticketInfoResult: document.getElementById("ticketInfoResult"),
+  ticketCoachingResult: document.getElementById("ticketCoachingResult"),
+  mentorTicketId: document.getElementById("mentorTicketId"),
+  mentorPrompt: document.getElementById("mentorPrompt"),
+  mentorBtn: document.getElementById("mentorBtn"),
+  mentorResult: document.getElementById("mentorResult"),
   hintTicketId: document.getElementById("hintTicketId"),
   hintLevel: document.getElementById("hintLevel"),
   hintBtn: document.getElementById("hintBtn"),
@@ -263,6 +268,9 @@ function renderTickets(tickets) {
     refs.ticketTableBody.innerHTML =
       '<tr><td colspan="6" class="empty-cell">No tickets for this session yet.</td></tr>';
     refs.ticketInfoResult.textContent = "Select a ticket to view details.";
+    refs.ticketCoachingResult.textContent =
+      "Select a closed ticket and use Coach to review how you handled it.";
+    refs.mentorResult.textContent = "Select a ticket and ask for higher-tier guidance here.";
     return;
   }
 
@@ -281,6 +289,7 @@ function renderTickets(tickets) {
         <td>
           <div class="table-actions">
             <button class="btn use-hint" data-ticket-id="${ticket.id}">Hint</button>
+            <button class="btn coach-ticket" data-ticket-id="${ticket.id}">Coach</button>
             <button class="btn kb-draft" data-ticket-id="${ticket.id}">KB</button>
             <button class="btn close-ticket" data-ticket-id="${ticket.id}">Close</button>
             <button class="btn btn-danger delete-ticket" data-ticket-id="${ticket.id}">Delete</button>
@@ -305,6 +314,7 @@ function renderTickets(tickets) {
       event.stopPropagation();
       const ticketId = button.dataset.ticketId;
       refs.hintTicketId.value = ticketId;
+      refs.mentorTicketId.value = ticketId;
       refs.hintTicketId.focus();
       writeLog(refs.hintResult, "Hint target set. Pick level and request.");
       await loadTicketInfo(ticketId);
@@ -315,6 +325,16 @@ function renderTickets(tickets) {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
       await generateKnowledgeDraft(button.dataset.ticketId);
+    });
+  });
+
+  refs.ticketTableBody.querySelectorAll(".coach-ticket").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const ticketId = button.dataset.ticketId;
+      if (!ticketId) return;
+      await loadTicketInfo(ticketId);
+      await generateTicketCoaching(ticketId);
     });
   });
 
@@ -641,6 +661,14 @@ async function loadTicketInfo(ticketId) {
   }
 
   writeHumanAndJson(refs.ticketInfoResult, summaryLines.join("\n"), payload);
+  refs.hintTicketId.value = ticket.id;
+  refs.mentorTicketId.value = ticket.id;
+  refs.mentorResult.textContent =
+    "Ask a senior tech what to check next, whether to escalate, or what likely caused the issue.";
+  refs.ticketCoachingResult.textContent =
+    ticket.status === "closed"
+      ? "This ticket is closed. Use Coach to generate a post-ticket review."
+      : "Close this ticket first, then use Coach to review how you handled it.";
 }
 
 async function clockIn() {
@@ -762,6 +790,68 @@ async function generateKnowledgeDraft(ticketId) {
   }
 }
 
+async function generateTicketCoaching(ticketId) {
+  if (!ticketId) return;
+  try {
+    const data = await api(`/v1/tickets/${ticketId}/coach`, {
+      method: "POST",
+      headers: {},
+    });
+    if (!data.ready) {
+      writeHumanAndJson(refs.ticketCoachingResult, data.english_summary || "Coaching is not ready yet.", data);
+      return;
+    }
+
+    const summaryLines = [
+      data.english_summary || "Coaching generated.",
+      "",
+      `Coaching Note: ${data.coaching_note || "-"}`,
+      "",
+      `Professionalism: ${data.professionalism_critique || "-"}`,
+      `Documentation: ${data.documentation_critique || "-"}`,
+      "",
+      `Strengths: ${(data.strengths || []).length ? data.strengths.join(" | ") : "-"}`,
+      `Focus Areas: ${(data.focus_areas || []).length ? data.focus_areas.join(" | ") : "-"}`,
+    ];
+
+    writeHumanAndJson(refs.ticketCoachingResult, summaryLines.join("\n"), data);
+  } catch (error) {
+    writeLog(refs.ticketCoachingResult, `Coaching failed: ${error.message}`);
+  }
+}
+
+async function askMentor() {
+  const ticketId = refs.mentorTicketId.value.trim();
+  const message = refs.mentorPrompt.value.trim();
+  if (!ticketId) {
+    writeLog(refs.mentorResult, "Provide a local ticket ID first.");
+    return;
+  }
+  if (!message) {
+    writeLog(refs.mentorResult, "Type the internal question you want to ask the mentor.");
+    return;
+  }
+
+  setBusy(refs.mentorBtn, true);
+  try {
+    const data = await api(`/v1/tickets/${ticketId}/mentor`, {
+      method: "POST",
+      headers: {},
+      body: JSON.stringify({ message }),
+    });
+    const summaryLines = [
+      data.english_summary || "Mentor guidance generated.",
+      "",
+      `Mentor Reply: ${data.mentor_reply || "-"}`,
+    ];
+    writeHumanAndJson(refs.mentorResult, summaryLines.join("\n"), data);
+  } catch (error) {
+    writeLog(refs.mentorResult, `Mentor request failed: ${error.message}`);
+  } finally {
+    setBusy(refs.mentorBtn, false);
+  }
+}
+
 async function deleteSingleTicket(ticketId) {
   if (!ticketId) return;
   const proceed = window.confirm(
@@ -784,6 +874,9 @@ async function deleteSingleTicket(ticketId) {
     if (state.selectedTicketId === ticketId) {
       state.selectedTicketId = null;
       refs.ticketInfoResult.textContent = "Select a ticket to view details.";
+      refs.ticketCoachingResult.textContent =
+        "Select a closed ticket and use Coach to review how you handled it.";
+      refs.mentorResult.textContent = "Select a ticket and ask for higher-tier guidance here.";
     }
     if (state.selectedSessionId) {
       await loadSessionDetail(state.selectedSessionId);
@@ -847,6 +940,9 @@ async function deleteAllTicketsInSelectedSession() {
     state.selectedTicketId = null;
     state.currentSessionTickets = [];
     refs.ticketInfoResult.textContent = "Select a ticket to view details.";
+    refs.ticketCoachingResult.textContent =
+      "Select a closed ticket and use Coach to review how you handled it.";
+    refs.mentorResult.textContent = "Select a ticket and ask for higher-tier guidance here.";
     await loadSessionDetail(sessionId);
   } catch (error) {
     writeLog(refs.actionResult, `Delete all tickets failed: ${error.message}`);
@@ -1155,6 +1251,7 @@ refs.dailyReportBtn.addEventListener("click", () => loadReport("daily"));
 refs.weeklyReportBtn.addEventListener("click", () => loadReport("weekly"));
 refs.llmStatusRefreshBtn.addEventListener("click", () => loadLlmRuntimeStatus());
 refs.wakeEngineBtn.addEventListener("click", wakeEngineHost);
+refs.mentorBtn.addEventListener("click", askMentor);
 refs.showRawJson.addEventListener("change", () => applyRawDisplayMode(refs.showRawJson.value, true));
 refs.manualTierSelect.addEventListener("change", renderScenarioOptions);
 refs.manualTypeSelect.addEventListener("change", renderScenarioOptions);

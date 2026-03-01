@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from helpdesk_sim.domain.models import ClockInRequest, HintRequest, ManualTicketRequest
+from helpdesk_sim.domain.models import ClockInRequest, HintRequest, ManualTicketRequest, MentorRequest
 from helpdesk_sim.services.wake_on_lan import (
     is_tcp_endpoint_reachable,
     mask_mac_address,
@@ -237,6 +237,35 @@ def generate_ticket_coaching(request: Request, ticket_id: str) -> dict[str, obje
         "ticket_id": ticket_id,
         "ready": True,
         **payload,
+    }
+
+
+@router.post("/v1/tickets/{ticket_id}/mentor")
+def request_mentor_guidance(
+    request: Request,
+    ticket_id: str,
+    payload: MentorRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    ticket = runtime.repository.get_ticket(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="ticket not found")
+
+    interactions = runtime.repository.list_interactions(ticket_id)
+    response = runtime.mentor_service.request_guidance(
+        ticket=ticket,
+        interactions=interactions,
+        analyst_message=payload.message,
+    )
+    runtime.repository.add_interaction(
+        ticket_id=ticket_id,
+        actor="mentor",
+        body=str(response.get("mentor_reply", "")).strip() or "Mentor guidance generated.",
+        metadata={"event": "mentor", "analyst_message": payload.message},
+    )
+    return {
+        "ticket_id": ticket_id,
+        **response,
     }
 
 

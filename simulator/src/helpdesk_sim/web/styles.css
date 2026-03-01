@@ -439,18 +439,30 @@ h1 {
 
 input,
 select,
+textarea,
 button {
   font: inherit;
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 9px 11px;
   background: var(--card);
   color: var(--ink);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 76px;
+}
+
+.mentor-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 2.5fr) auto;
+  align-items: end;
 }
 
 .btn {

@@ -225,6 +225,17 @@ class HintRequest(BaseModel):
     level: HintLevel
 
 
+class MentorRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=1200)
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def normalize_message(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
 class ManualTicketRequest(BaseModel):
     session_id: str | None = None
     count: int = Field(default=1, ge=1, le=20)
