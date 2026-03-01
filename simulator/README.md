@@ -23,6 +23,7 @@ V2 keeps that foundation and adds optional LLM behavior where it improves realis
 - **Conversation continuity:** recent ticket interactions can be included in the LLM prompt for better follow-up consistency.
 - **Adaptive hints/coaching:** hint text can adapt to your actual troubleshooting steps.
 - **Richer closure feedback:** explanation quality can improve while deterministic score math stays intact.
+- **Professionalism review:** analyst tone can be checked and called out in post-close coaching.
 - **Scenario expression variety:** same underlying truth, but more variation in ticket wording and user tone.
 - **Optional wake control:** the UI can expose a Wake-on-LAN action for the LLM host PC when configured.
 
@@ -44,6 +45,7 @@ This keeps the simulator realistic without letting AI drift break scoring, troub
 - Expanded structured scenario dimensions (device, location, urgency, business context, user tone) so ticket streams feel less repetitive before any freeform AI variation is applied.
 - Optional LLM coaching notes attached to deterministic grading results.
 - Optional LLM documentation critique so post-close feedback can assess note quality and communication.
+- Optional professionalism critique so post-close feedback can flag hostile or clearly inappropriate analyst replies.
 - Optional mentor/escalation chat panel in the UI to simulate consulting a senior tech or sysadmin.
 - Hint responses that stay grounded in the structured hint bank, but can be reworded by the LLM into more natural coaching language.
 
@@ -55,10 +57,12 @@ This keeps the simulator realistic without letting AI drift break scoring, troub
 - Incident injection support (for example, simulated network outage spikes).
 - Hidden scenario truth per ticket (root cause, expected checks, valid fixes).
 - Poller loop that watches ticket updates and posts simulated customer replies.
+- Poller ignores internal Zammad notes so simulated customers only answer public agent replies.
 - Persona-based customer identities (HR/Finance/etc.) that first reuse existing Zammad department users, then auto-create customer + organization records if needed.
 - Hint system with configurable score penalties.
 - SLA-aware grading model and performance reports.
 - Knowledge article links at scenario level (backend-ready for KB workflows).
+- New simulator-created tickets are sent to Zammad as `new` and unassigned.
 - Dashboard includes day-profile definitions and manual ticket generation by filters.
 - Dashboard includes mass clock-out, light/dark/auto theme toggle, and readable hint/report summaries with raw JSON.
 - Trickle delivery mode enabled by default so tickets arrive gradually instead of all at once.
@@ -136,6 +140,7 @@ Dashboard highlights:
 - Ticket delete actions now attempt linked Zammad ticket deletion first, then remove simulator records.
 - Hint requests directly in UI with penalty visibility plus plain-English summaries.
 - LLM runtime status now reports whether the configured LLM host appears reachable right now, not just whether Wake-on-LAN is configured.
+- Wake-on-LAN works best when the simulator process sending the packet is on the same LAN as the target PC. A remote Mac instance will usually not be able to send a directed broadcast to your home LAN.
 - Report cards in plain English plus raw JSON for debugging/auditing.
 - Theme selector: `Auto` (follows system), `Light`, or `Dark`.
 - `Clock Out All` button to end every active shift in one action.
@@ -204,6 +209,12 @@ Environment variables use the `SIM_` prefix.
 - `SIM_SCHEDULER_INTERVAL_SECONDS`: how often scheduler checks for due windows.
 
 If your token cannot create/search users, set `SIM_ZAMMAD_CUSTOMER_FALLBACK_EMAIL` to an existing customer user (for example `sim.test@bmm.local`) so ticket creation can still proceed.
+
+Wake-on-LAN routing note:
+
+- The simulator can only send a normal Wake-on-LAN broadcast if the machine running the simulator has a route to the target LAN broadcast address.
+- If you run `v2` locally on a remote Mac and point Wake-on-LAN at a home LAN broadcast (for example `192.168.86.255`), macOS may return `No route to host`.
+- In that remote-use case, the reliable option is to run the wake action from your homelab instance on the home network, or expose a small wake relay on the homelab.
 
 ## Clock-In Workflow
 

@@ -14,7 +14,7 @@ Operations toolkit for building and running a realistic help desk training envir
 | Ticket generation | YAML-driven scenarios, profiles, and weighted scheduling | Same base engine, plus optional LLM variation for more natural ticket phrasing |
 | End-user replies | Rule-based follow-up responses from scenario clue maps | Context-aware conversational replies based on ticket history and persona |
 | Hinting | Pre-authored hints (`nudge`, `guided_step`, `strong_hint`) | Dynamic hints tailored to your troubleshooting path |
-| Grading feedback | Deterministic scoring and plain-English summaries | Same deterministic scoring, plus optional LLM coaching notes |
+| Grading feedback | Deterministic scoring and plain-English summaries | Same deterministic scoring, plus optional LLM coaching notes, documentation critique, and professionalism review |
 | Deployment model | Runs fully on homelab (no LLM required) | Keeps homelab backend and calls remote LLM API (for example Ollama) |
 
 ## V2 Design Rules
@@ -32,6 +32,7 @@ Planned `v2` enhancements:
 - Optional LLM rewrite of the opening ticket wording while preserving the same hidden truth.
 - Optional LLM coaching notes layered on top of deterministic grading.
 - Optional LLM documentation critique after ticket closure.
+- Optional professionalism critique that flags hostile or clearly unprofessional analyst language.
 - Optional mentor/escalation chat panel that simulates consulting a senior tech.
 - Hint wording that can be rephrased by the LLM, while still being sourced from deterministic hidden truth.
 
@@ -51,6 +52,7 @@ Key capabilities:
 - Default trickle delivery so generated windows arrive gradually.
 - Tier-targeted ticket streams (`tier1`, `tier2`, `sysadmin`).
 - Hidden scenario truth and deterministic grading.
+- New simulator-created tickets land as `new` and unassigned so they stay in the intended Zammad queue.
 - Hint mode with penalty controls.
 - Daily and weekly performance summaries.
 - Built-in dashboard at `http://localhost:8079/ui` with light/dark/auto theme and mass clock-out.
