@@ -225,6 +225,7 @@ def generate_ticket_coaching(request: Request, ticket_id: str) -> dict[str, obje
             "strengths": [],
             "focus_areas": [],
             "documentation_critique": "",
+            "professionalism_critique": "",
             "llm_used": False,
             "last_error": None,
             "english_summary": "Close the ticket first so the simulator has a final grade to coach against.",

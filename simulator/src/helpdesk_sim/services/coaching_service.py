@@ -29,6 +29,7 @@ class CoachingService:
         strengths = self._build_strengths(score_detail)
         focus_areas = self._build_focus_areas(score_detail, missed_checks)
         documentation_critique = self._build_documentation_critique(interactions)
+        professionalism_critique = self._build_professionalism_critique(interactions)
         deterministic_note = self._build_deterministic_note(
             ticket=ticket,
             score_detail=score_detail,
@@ -36,6 +37,7 @@ class CoachingService:
             strengths=strengths,
             focus_areas=focus_areas,
             documentation_critique=documentation_critique,
+            professionalism_critique=professionalism_critique,
         )
 
         llm_note = ""
@@ -50,6 +52,7 @@ class CoachingService:
                     strengths=strengths,
                     focus_areas=focus_areas,
                     documentation_critique=documentation_critique,
+                    professionalism_critique=professionalism_critique,
                 )
                 llm_used = bool(llm_note)
             except Exception as exc:  # pragma: no cover - network failure path
@@ -61,6 +64,7 @@ class CoachingService:
             "strengths": strengths,
             "focus_areas": focus_areas,
             "documentation_critique": documentation_critique,
+            "professionalism_critique": professionalism_critique,
             "llm_used": llm_used,
             "last_error": last_error,
             "english_summary": (
@@ -119,6 +123,35 @@ class CoachingService:
         return "Your notes are missing explicit coverage for: " + ", ".join(missing) + "."
 
     @staticmethod
+    def _build_professionalism_critique(interactions: list[InteractionRecord]) -> str:
+        agent_messages = [
+            row.body.strip()
+            for row in interactions
+            if row.actor == "agent" and row.body.strip()
+        ]
+        if not agent_messages:
+            return "No analyst messages were captured, so professionalism could not be reviewed."
+
+        lowered = "\n".join(message.lower() for message in agent_messages)
+        flagged_phrases = [
+            "you're fired",
+            "you are fired",
+            "shut up",
+            "idiot",
+            "stupid",
+            "that's dumb",
+            "not my problem",
+        ]
+        found = [phrase for phrase in flagged_phrases if phrase in lowered]
+        if found:
+            quoted = ", ".join(f"'{phrase}'" for phrase in found[:3])
+            return (
+                "Your analyst messages included unprofessional language "
+                f"({quoted}). Keep the tone professional and relevant to the user issue."
+            )
+        return "No major professionalism issues were detected in the analyst replies that were captured."
+
+    @staticmethod
     def _build_deterministic_note(
         ticket: TicketRecord,
         score_detail: dict[str, object],
@@ -126,6 +159,7 @@ class CoachingService:
         strengths: list[str],
         focus_areas: list[str],
         documentation_critique: str,
+        professionalism_critique: str,
     ) -> str:
         total = int(score_detail.get("total", 0) or 0)
         first_response = metrics.get("first_response_minutes", "n/a")
@@ -133,6 +167,7 @@ class CoachingService:
         note_parts = [
             f"Ticket review for '{ticket.subject}': total score {total}.",
             strengths[0],
+            professionalism_critique,
             documentation_critique,
             f"First response was {first_response} minutes and resolution was {resolution} minutes.",
         ]
@@ -148,6 +183,7 @@ class CoachingService:
         strengths: list[str],
         focus_areas: list[str],
         documentation_critique: str,
+        professionalism_critique: str,
     ) -> str:
         prompt = "\n".join(
             [
@@ -164,6 +200,7 @@ class CoachingService:
                 *[f"- {item}" for item in strengths],
                 "Focus areas:",
                 *([f"- {item}" for item in focus_areas] or ["- No major focus areas recorded."]),
+                f"Professionalism critique: {professionalism_critique}",
                 f"Documentation critique: {documentation_critique}",
                 "Return only the coaching note text.",
             ]

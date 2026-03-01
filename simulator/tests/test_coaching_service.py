@@ -57,6 +57,20 @@ def _sample_interactions() -> list[InteractionRecord]:
     ]
 
 
+def _hostile_interactions() -> list[InteractionRecord]:
+    now = datetime.now(UTC)
+    return [
+        InteractionRecord(
+            id="1",
+            ticket_id="ticket-1",
+            actor="agent",
+            body="You're fired!",
+            created_at=now,
+            metadata={},
+        )
+    ]
+
+
 def test_coaching_service_returns_deterministic_feedback_without_llm() -> None:
     service = CoachingService(
         llm_enabled=False,
@@ -71,6 +85,20 @@ def test_coaching_service_returns_deterministic_feedback_without_llm() -> None:
     assert result["strengths"]
     assert result["focus_areas"]
     assert "missing explicit coverage" in str(result["documentation_critique"]).lower()
+    assert "no major professionalism issues" in str(result["professionalism_critique"]).lower()
+
+
+def test_coaching_service_flags_unprofessional_language() -> None:
+    service = CoachingService(
+        llm_enabled=False,
+        ollama_url="http://127.0.0.1:11434",
+        ollama_model="llama3:latest",
+    )
+
+    result = service.generate_ticket_coaching(_sample_ticket(), _hostile_interactions())
+
+    assert "unprofessional language" in str(result["professionalism_critique"]).lower()
+    assert "you're fired" in str(result["deterministic_note"]).lower()
 
 
 def test_coaching_service_uses_ollama_when_available(monkeypatch) -> None:
