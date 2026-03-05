@@ -178,6 +178,12 @@ h1 {
   background: rgba(29, 78, 216, 0.18);
 }
 
+.badge-version {
+  color: var(--ink-soft);
+  border-color: var(--line);
+  background: var(--card);
+}
+
 .panel {
   padding: 16px;
 }

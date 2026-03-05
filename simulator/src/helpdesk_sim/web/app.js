@@ -25,6 +25,7 @@ const systemColorScheme = window.matchMedia("(prefers-color-scheme: dark)");
 const refs = {
   healthBadge: document.getElementById("healthBadge"),
   requestStatusBadge: document.getElementById("requestStatusBadge"),
+  versionBadge: document.getElementById("versionBadge"),
   themeLauncher: document.getElementById("themeLauncher"),
   themePanel: document.getElementById("themePanel"),
   themeModeButtons: Array.from(document.querySelectorAll(".theme-mode-btn[data-theme-mode]")),
@@ -592,9 +593,18 @@ async function loadHealth() {
     const data = await api("/health", { method: "GET", headers: {} });
     refs.healthBadge.textContent = data.status === "ok" ? "API Online" : "API Unknown";
     refs.healthBadge.className = `badge ${data.status === "ok" ? "ok" : "fail"}`;
+    if (refs.versionBadge && data?.version) {
+      const versionText = String(data.version).startsWith("v") ? String(data.version) : `v${data.version}`;
+      refs.versionBadge.textContent = versionText;
+      refs.versionBadge.title = `Simulator version ${versionText}`;
+    }
   } catch (error) {
     refs.healthBadge.textContent = `API Error: ${error.message}`;
     refs.healthBadge.className = "badge fail";
+    if (refs.versionBadge) {
+      refs.versionBadge.textContent = "v?";
+      refs.versionBadge.title = "Version unavailable";
+    }
   }
 }
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from helpdesk_sim import __version__
 from helpdesk_sim.domain.models import (
     ClockInRequest,
     HintRequest,
@@ -26,7 +27,7 @@ router = APIRouter()
 
 @router.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "version": __version__}
 
 
 @router.get("/v1/runtime/response-engine")

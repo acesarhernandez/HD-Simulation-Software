@@ -6,6 +6,15 @@ The format is inspired by Keep a Changelog and uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-03-05
+
+### Added
+- Dashboard header version badge sourced from backend runtime metadata.
+
+### Changed
+- `/health` now returns simulator version alongside status.
+- Simulator version bumped from `0.2.0` to `0.2.1`.
+
 ## [0.2.0] - 2026-03-05
 
 ### Added
