@@ -13,8 +13,10 @@ Operations toolkit for building and running a realistic help desk training envir
 | --- | --- | --- |
 | Ticket generation | YAML-driven scenarios, profiles, and weighted scheduling | Same base engine, plus optional LLM variation for more natural ticket phrasing |
 | End-user replies | Rule-based follow-up responses from scenario clue maps | Context-aware conversational replies based on ticket history and persona |
+| LLM readiness/wake | Not applicable | Engine-controller-first readiness and wake integration (manual wake + automatic ensure-ready preflight) |
 | Hinting | Pre-authored hints (`nudge`, `guided_step`, `strong_hint`) | Dynamic hints tailored to your troubleshooting path |
 | Grading feedback | Deterministic scoring and plain-English summaries | Same deterministic scoring, plus optional LLM coaching notes, documentation critique, and professionalism review |
+| KB workflow | Manual copy-from-ticket only | Manual KB proposal queue with review, revision, approval, and publish flow for external KB targets |
 | Deployment model | Runs fully on homelab (no LLM required) | Keeps homelab backend and calls remote LLM API (for example Ollama) |
 
 ## V2 Design Rules
@@ -59,7 +61,9 @@ Key capabilities:
 - Built-in dashboard at `http://localhost:8079/ui` with light/dark/auto theme and mass clock-out.
 - Shift Control now includes a compact day-profile quick look, while full profile comparisons stay tucked behind an inline expander.
 - Ticket detail includes built-in coaching actions, and the dashboard includes a mentor console for internal escalation guidance, communication coaching, SLA guidance, escalation decisions, and documentation tips.
+- V2 adds a manual KB proposal workflow: propose from a closed ticket, review the draft, revise it, and publish to the configured external KB provider.
 - LLM runtime now includes a small PC online/offline indicator based on whether the configured LLM host is reachable.
+- In controller mode, runtime status reflects engine lifecycle states (`offline`, `waking`, `pc_online`, `ready`) from the shared homelab engine-control service.
 - Dashboard actions show visible loading states so you can see when the LLM is generating, the poller is running, or the PC wake request is being sent.
 - Plain-language guide at `http://localhost:8079/ui/guide`.
 - Extension point for a remote response engine in v2.

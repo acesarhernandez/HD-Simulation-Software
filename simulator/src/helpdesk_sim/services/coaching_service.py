@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import httpx
 
 from helpdesk_sim.domain.models import InteractionRecord, TicketRecord
+from helpdesk_sim.services.engine_control_client import EngineReadinessCoordinator
 
 
 @dataclass(slots=True)
@@ -13,6 +14,7 @@ class CoachingService:
     ollama_url: str
     ollama_model: str
     timeout_seconds: float = 20.0
+    engine_readiness: EngineReadinessCoordinator | None = None
 
     def generate_ticket_coaching(
         self,
@@ -210,6 +212,8 @@ class CoachingService:
             "prompt": prompt,
             "stream": False,
         }
+        if self.engine_readiness is not None:
+            self.engine_readiness.ensure_ready_for_llm()
         with httpx.Client(base_url=self.ollama_url, timeout=self.timeout_seconds) as client:
             response = client.post("/api/generate", json=payload)
             response.raise_for_status()

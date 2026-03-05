@@ -7,6 +7,7 @@ import httpx
 
 from helpdesk_sim.domain.models import GeneratedTicket, SessionProfile, TicketTier
 from helpdesk_sim.services.catalog_service import CatalogService
+from helpdesk_sim.services.engine_control_client import EngineReadinessCoordinator
 
 
 @dataclass(slots=True)
@@ -18,6 +19,7 @@ class GenerationService:
     ollama_model: str = "llama3.1:8b"
     rewrite_opening_tickets: bool = True
     timeout_seconds: float = 20.0
+    engine_readiness: EngineReadinessCoordinator | None = None
 
     def build_ticket(
         self,
@@ -135,6 +137,8 @@ class GenerationService:
             "stream": False,
         }
         try:
+            if self.engine_readiness is not None:
+                self.engine_readiness.ensure_ready_for_llm()
             with httpx.Client(base_url=self.ollama_url, timeout=self.timeout_seconds) as client:
                 response = client.post("/api/generate", json=payload)
                 response.raise_for_status()

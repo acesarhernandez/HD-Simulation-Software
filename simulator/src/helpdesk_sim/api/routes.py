@@ -2,7 +2,19 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from helpdesk_sim.domain.models import ClockInRequest, HintRequest, ManualTicketRequest, MentorRequest
+from helpdesk_sim.domain.models import (
+    ClockInRequest,
+    HintRequest,
+    KnowledgeReviewDecisionRequest,
+    KnowledgeReviewStatus,
+    KnowledgeRevisionRequest,
+    ManualTicketRequest,
+    MentorRequest,
+)
+from helpdesk_sim.services.engine_control_client import (
+    is_engine_ready_state,
+    normalize_engine_state,
+)
 from helpdesk_sim.services.wake_on_lan import (
     is_tcp_endpoint_reachable,
     mask_mac_address,
@@ -21,7 +33,7 @@ def health() -> dict[str, str]:
 def get_response_engine_status(request: Request) -> dict[str, object]:
     runtime = request.app.state.runtime
     status = runtime.response_engine.describe_status()
-    status.update(_wake_on_lan_status(runtime.settings))
+    status.update(_engine_runtime_status(runtime))
     status["english_summary"] = _response_engine_summary(status)
     return status
 
@@ -30,6 +42,38 @@ def get_response_engine_status(request: Request) -> dict[str, object]:
 def wake_llm_host(request: Request) -> dict[str, object]:
     runtime = request.app.state.runtime
     settings = runtime.settings
+    engine_controller = runtime.engine_control_client
+    if engine_controller is not None and engine_controller.is_configured():
+        try:
+            payload = engine_controller.wake()
+            runtime.engine_readiness.mark_wake_requested()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"failed to send wake request via engine controller: {exc}",
+            ) from exc
+
+        state = normalize_engine_state(payload)
+        label = settings.llm_host_label
+        summary = str(payload.get("english_summary") or "").strip()
+        if not summary:
+            summary = f"Wake request sent via engine controller for {label}."
+
+        return {
+            "wake_sent": bool(payload.get("wake_sent", True)),
+            "packet_bytes": int(payload.get("packet_bytes", 0) or 0),
+            "llm_host_label": label,
+            "llm_host_mac_masked": payload.get("llm_host_mac_masked"),
+            "wake_on_lan_enabled": True,
+            "wake_on_lan_ready": True,
+            "broadcast_ip": payload.get("broadcast_ip", ""),
+            "port": int(payload.get("port", 0) or 0),
+            "engine_control_mode": "controller",
+            "engine_state": state,
+            "controller_payload": payload,
+            "english_summary": summary,
+        }
+
     if not settings.llm_host_wol_enabled:
         raise HTTPException(status_code=400, detail="Wake-on-LAN is disabled for the LLM host")
     if not settings.llm_host_mac.strip():
@@ -102,6 +146,119 @@ def list_knowledge_articles(request: Request) -> dict[str, list[dict]]:
     runtime = request.app.state.runtime
     articles = runtime.catalog.list_knowledge_articles()
     return {"articles": [article.model_dump(mode="json") for article in articles]}
+
+
+@router.get("/v1/kb/providers/status")
+def get_kb_provider_status(request: Request) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    status = runtime.knowledge_provider_service.status()
+    if not runtime.settings.kb_enabled:
+        status["english_summary"] = "KB review mode is disabled."
+    elif not bool(status.get("ready")):
+        status["english_summary"] = str(status.get("reason") or "KB provider is not ready.")
+    else:
+        status["english_summary"] = (
+            f"{status.get('provider', 'KB provider')} is ready. "
+            f"Cached articles: {status.get('cached_article_count', 0)}."
+        )
+    return status
+
+
+@router.post("/v1/kb/sync")
+def sync_kb_provider(request: Request) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    if not runtime.settings.kb_enabled:
+        raise HTTPException(status_code=400, detail="KB review mode is disabled")
+    try:
+        return runtime.knowledge_provider_service.sync_index()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/v1/kb/review-items")
+def list_kb_review_items(
+    request: Request,
+    status: str | None = Query(default=None),
+    provider: str | None = Query(default=None),
+    source_ticket_id: str | None = Query(default=None),
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    parsed_status = None
+    if status:
+        try:
+            parsed_status = KnowledgeReviewStatus(status)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"invalid KB review status '{status}'") from exc
+    payload = runtime.knowledge_review_service.list_review_items(
+        status=parsed_status,
+        provider=provider,
+        source_ticket_id=source_ticket_id,
+    )
+    payload["english_summary"] = f"{payload['count']} KB review item(s) loaded."
+    return payload
+
+
+@router.get("/v1/kb/review-items/{review_item_id}")
+def get_kb_review_item(request: Request, review_item_id: str) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    try:
+        detail = runtime.knowledge_review_service.get_review_detail(review_item_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    detail["english_summary"] = f"Loaded KB review item {review_item_id[:8]}."
+    return detail
+
+
+@router.post("/v1/kb/review-items/{review_item_id}/revise")
+def revise_kb_review_item(
+    request: Request,
+    review_item_id: str,
+    payload: KnowledgeRevisionRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    try:
+        return runtime.knowledge_review_service.revise_review_item(review_item_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/v1/kb/review-items/{review_item_id}/approve")
+def approve_kb_review_item(
+    request: Request,
+    review_item_id: str,
+    payload: KnowledgeReviewDecisionRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    try:
+        return runtime.knowledge_review_service.approve_review_item(review_item_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/kb/review-items/{review_item_id}/publish")
+def publish_kb_review_item(request: Request, review_item_id: str) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    try:
+        return runtime.knowledge_review_service.publish_review_item(review_item_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/v1/kb/review-items/{review_item_id}/reject")
+def reject_kb_review_item(
+    request: Request,
+    review_item_id: str,
+    payload: KnowledgeReviewDecisionRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    try:
+        return runtime.knowledge_review_service.reject_review_item(review_item_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/v1/sessions")
@@ -207,6 +364,21 @@ def generate_knowledge_draft(request: Request, ticket_id: str) -> dict[str, obje
         "english_summary": "KB draft generated. Review and copy into your knowledge base.",
         "markdown": markdown,
     }
+
+
+@router.post("/v1/tickets/{ticket_id}/kb/propose")
+def propose_knowledge_article(request: Request, ticket_id: str) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    if not runtime.settings.kb_enabled:
+        raise HTTPException(status_code=400, detail="KB review mode is disabled")
+    try:
+        return runtime.knowledge_proposal_service.propose_for_ticket(ticket_id)
+    except ValueError as exc:
+        message = str(exc)
+        status_code = 404 if "not found" in message else 400
+        raise HTTPException(status_code=status_code, detail=message) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @router.post("/v1/tickets/{ticket_id}/coach")
@@ -630,7 +802,7 @@ def _response_engine_summary(status: dict[str, object]) -> str:
     return summary
 
 
-def _wake_on_lan_status(settings) -> dict[str, object]:
+def _legacy_wake_on_lan_status(settings) -> dict[str, object]:
     reachable, endpoint_host, endpoint_port = is_tcp_endpoint_reachable(settings.ollama_url)
     mac = settings.llm_host_mac.strip()
     masked_mac = None
@@ -657,7 +829,81 @@ def _wake_on_lan_status(settings) -> dict[str, object]:
     }
 
 
+def _engine_runtime_status(runtime) -> dict[str, object]:
+    settings = runtime.settings
+    endpoint_reachable, endpoint_host, endpoint_port = is_tcp_endpoint_reachable(settings.ollama_url)
+    controller = runtime.engine_control_client
+    if controller is None or not controller.is_configured():
+        status = _legacy_wake_on_lan_status(settings)
+        status["engine_control_mode"] = "legacy_wol"
+        status["engine_control_configured"] = False
+        status["engine_state"] = "ready" if status.get("llm_host_reachable") else "offline"
+        status["engine_ready"] = bool(status.get("llm_host_reachable"))
+        return status
+
+    status: dict[str, object] = {
+        "engine_control_mode": "controller",
+        "engine_control_configured": True,
+        "engine_control_url": settings.engine_control_url,
+        "engine_auto_wake": settings.engine_auto_wake,
+        "engine_auto_wake_timeout_seconds": settings.engine_auto_wake_timeout_seconds,
+        "llm_host_label": settings.llm_host_label,
+        "llm_host_endpoint_host": endpoint_host,
+        "llm_host_endpoint_port": endpoint_port,
+        "llm_host_wol_broadcast_ip": settings.llm_host_wol_broadcast_ip,
+        "llm_host_wol_port": settings.llm_host_wol_port,
+        "wake_on_lan_enabled": True,
+        "wake_on_lan_ready": True,
+        "llm_host_mac_masked": None,
+        "llm_host_mac_valid": True,
+        "llm_host_reachable": endpoint_reachable,
+        "engine_state": "unknown",
+        "engine_ready": False,
+    }
+
+    try:
+        controller_payload = controller.get_status()
+    except Exception as exc:
+        status["engine_control_error"] = str(exc)
+        status["wake_on_lan_ready"] = False
+        return status
+
+    state = normalize_engine_state(controller_payload)
+    ready = bool(controller_payload.get("ready")) or is_engine_ready_state(state)
+    status.update(
+        {
+            "engine_state": state,
+            "engine_ready": ready,
+            "llm_host_reachable": ready or endpoint_reachable,
+            "controller_payload": controller_payload,
+        }
+    )
+    if "llm_host_mac_masked" in controller_payload:
+        status["llm_host_mac_masked"] = controller_payload.get("llm_host_mac_masked")
+    if "wake_supported" in controller_payload:
+        status["wake_on_lan_ready"] = bool(controller_payload.get("wake_supported"))
+    return status
+
+
 def _wake_summary(status: dict[str, object]) -> str:
+    if str(status.get("engine_control_mode")) == "controller":
+        label = str(status.get("llm_host_label", "LLM engine"))
+        state = str(status.get("engine_state", "unknown")).replace("_", " ")
+        if status.get("engine_control_error"):
+            return (
+                f"Engine controller status is unavailable: {status['engine_control_error']}. "
+                "Manual wake may still be possible."
+            )
+        if state == "ready":
+            return f"Engine controller reports {label} is ready."
+        if state == "pc online":
+            return f"Engine controller reports {label} is online but Ollama is not ready yet."
+        if state == "waking":
+            return f"Engine controller reports {label} is waking."
+        if state == "offline":
+            return f"Engine controller reports {label} is offline."
+        return f"Engine controller state for {label}: {state}."
+
     enabled = bool(status.get("wake_on_lan_enabled"))
     ready = bool(status.get("wake_on_lan_ready"))
     reachable = bool(status.get("llm_host_reachable"))

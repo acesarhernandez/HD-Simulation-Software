@@ -36,6 +36,34 @@ class HintLevel(str, Enum):
     strong_hint = "strong_hint"
 
 
+class KnowledgeArticleType(str, Enum):
+    troubleshooting = "troubleshooting"
+    how_to = "how_to"
+
+
+class KnowledgeProposedAction(str, Enum):
+    create_new = "create_new"
+    update_existing = "update_existing"
+    append_scenario = "append_scenario"
+    not_recommended = "not_recommended"
+    needs_target_review = "needs_target_review"
+
+
+class KnowledgeReviewStatus(str, Enum):
+    draft = "draft"
+    needs_target_review = "needs_target_review"
+    needs_review = "needs_review"
+    approved = "approved"
+    published = "published"
+    rejected = "rejected"
+    publish_failed = "publish_failed"
+
+
+class KnowledgePublishMode(str, Enum):
+    internal = "internal"
+    public = "public"
+
+
 class SlaPolicy(BaseModel):
     first_response_minutes: dict[str, int] = Field(default_factory=dict)
     resolution_minutes: dict[str, int] = Field(default_factory=dict)
@@ -254,6 +282,28 @@ class ManualTicketRequest(BaseModel):
         return value
 
 
+class KnowledgeRevisionRequest(BaseModel):
+    instruction: str = Field(min_length=1, max_length=2400)
+
+    @field_validator("instruction", mode="before")
+    @classmethod
+    def normalize_instruction(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class KnowledgeReviewDecisionRequest(BaseModel):
+    notes: str = Field(default="", max_length=4000)
+
+    @field_validator("notes", mode="before")
+    @classmethod
+    def normalize_notes(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
 class HintResponse(BaseModel):
     ticket_id: str
     level: HintLevel
@@ -271,3 +321,69 @@ class ReportSummary(BaseModel):
     average_resolution_minutes: float
     sla_miss_rate: float
     top_missed_checks: list[str] = Field(default_factory=list)
+
+
+class KnowledgeArticleCacheEntry(BaseModel):
+    id: str
+    provider: str
+    external_article_id: str
+    external_kb_id: str = ""
+    external_category_id: str = ""
+    locale_id: str = ""
+    title: str
+    summary: str = ""
+    body_markdown: str = ""
+    tags: list[str] = Field(default_factory=list)
+    status: str = "unknown"
+    fingerprint: str = ""
+    last_synced_at: datetime
+    version_token: str = ""
+
+
+class KnowledgeReviewItem(BaseModel):
+    id: str
+    source_ticket_id: str
+    source_zammad_ticket_id: int | None = None
+    contributing_ticket_ids: list[str] = Field(default_factory=list)
+    provider: str
+    proposed_action: KnowledgeProposedAction
+    target_external_article_id: str | None = None
+    article_type: KnowledgeArticleType
+    title: str
+    summary: str = ""
+    tags: list[str] = Field(default_factory=list)
+    body_markdown: str
+    diff_summary: dict[str, Any] = Field(default_factory=dict)
+    matching_rationale: str = ""
+    llm_confidence: float = 0.0
+    kb_worthiness_score: int = 0
+    kb_worthiness_reason: str = ""
+    status: KnowledgeReviewStatus
+    review_notes: str = ""
+    created_at: datetime
+    updated_at: datetime
+    approved_at: datetime | None = None
+    published_at: datetime | None = None
+    published_external_article_id: str | None = None
+    publish_result: dict[str, Any] = Field(default_factory=dict)
+
+
+class KnowledgeReviewRevision(BaseModel):
+    id: str
+    review_item_id: str
+    revision_number: int
+    instruction_text: str
+    body_markdown: str
+    diff_summary: dict[str, Any] = Field(default_factory=dict)
+    llm_used: bool = False
+    created_at: datetime
+
+
+class KnowledgeReviewEvent(BaseModel):
+    id: str
+    review_item_id: str
+    event_type: str
+    actor: str
+    notes: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime

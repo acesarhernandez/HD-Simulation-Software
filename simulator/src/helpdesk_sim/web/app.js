@@ -6,6 +6,10 @@ const state = {
   profileDefinitions: [],
   pendingRequests: 0,
   llmRuntimeStatus: null,
+  engineWakePendingUntil: 0,
+  kbReviewItems: [],
+  selectedKbReviewId: null,
+  kbProviderStatus: null,
   catalog: {
     ticket_types: [],
     departments: [],
@@ -71,6 +75,17 @@ const refs = {
   llmStatusRefreshBtn: document.getElementById("llmStatusRefreshBtn"),
   wakeEngineBtn: document.getElementById("wakeEngineBtn"),
   llmStatusResult: document.getElementById("llmStatusResult"),
+  kbProviderMeta: document.getElementById("kbProviderMeta"),
+  kbStatusRefreshBtn: document.getElementById("kbStatusRefreshBtn"),
+  kbSyncBtn: document.getElementById("kbSyncBtn"),
+  kbQueueList: document.getElementById("kbQueueList"),
+  kbReviewResult: document.getElementById("kbReviewResult"),
+  kbReviewNotes: document.getElementById("kbReviewNotes"),
+  kbRevisionPrompt: document.getElementById("kbRevisionPrompt"),
+  kbReviseBtn: document.getElementById("kbReviseBtn"),
+  kbApproveBtn: document.getElementById("kbApproveBtn"),
+  kbPublishBtn: document.getElementById("kbPublishBtn"),
+  kbRejectBtn: document.getElementById("kbRejectBtn"),
 };
 
 function updateRequestStatus() {
@@ -331,6 +346,61 @@ function renderSessions() {
   });
 }
 
+function formatKebabLabel(value) {
+  return String(value || "")
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function isEngineWakePending() {
+  return Date.now() < Number(state.engineWakePendingUntil || 0);
+}
+
+function renderKbReviewQueue() {
+  if (!refs.kbQueueList) return;
+
+  if (!state.kbReviewItems.length) {
+    refs.kbQueueList.classList.add("empty");
+    refs.kbQueueList.textContent = "No KB proposals yet.";
+    return;
+  }
+
+  refs.kbQueueList.classList.remove("empty");
+  refs.kbQueueList.innerHTML = "";
+  state.kbReviewItems.forEach((item) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `kb-queue-item ${state.selectedKbReviewId === item.id ? "active" : ""}`;
+    card.dataset.reviewItemId = item.id;
+
+    const top = document.createElement("div");
+    top.className = "kb-queue-top";
+
+    const title = document.createElement("div");
+    title.className = "kb-queue-title";
+    title.textContent = item.title || "Untitled KB proposal";
+
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = formatKebabLabel(item.status);
+
+    const sub = document.createElement("div");
+    sub.className = "kb-queue-sub";
+    sub.textContent = [
+      `Action: ${formatKebabLabel(item.proposed_action)}`,
+      `Worthiness: ${item.kb_worthiness_score ?? 0}`,
+      item.target_external_article_id ? `Target: ${item.target_external_article_id}` : "New article",
+    ].join(" | ");
+
+    top.append(title, badge);
+    card.append(top, sub);
+    card.addEventListener("click", () => loadKbReviewDetail(item.id));
+    refs.kbQueueList.append(card);
+  });
+}
+
 function renderTickets(tickets) {
   if (!tickets.length) {
     refs.ticketTableBody.innerHTML =
@@ -359,7 +429,7 @@ function renderTickets(tickets) {
           <div class="table-actions">
             <button class="btn use-hint" data-ticket-id="${ticket.id}">Hint</button>
             <button class="btn coach-ticket" data-ticket-id="${ticket.id}" data-busy-label="Reviewing...">Coach</button>
-            <button class="btn kb-draft" data-ticket-id="${ticket.id}" data-busy-label="Drafting...">KB</button>
+            <button class="btn kb-propose" data-ticket-id="${ticket.id}" data-busy-label="Proposing...">Propose KB (Beta)</button>
             <button class="btn close-ticket" data-ticket-id="${ticket.id}" data-busy-label="Closing...">Close</button>
             <button class="btn btn-danger delete-ticket" data-ticket-id="${ticket.id}" data-busy-label="Deleting...">Delete</button>
           </div>
@@ -390,10 +460,10 @@ function renderTickets(tickets) {
     });
   });
 
-  refs.ticketTableBody.querySelectorAll(".kb-draft").forEach((button) => {
+  refs.ticketTableBody.querySelectorAll(".kb-propose").forEach((button) => {
     button.addEventListener("click", async (event) => {
       event.stopPropagation();
-      await generateKnowledgeDraft(button.dataset.ticketId, button);
+      await proposeKnowledgeArticle(button.dataset.ticketId, button);
     });
   });
 
@@ -590,20 +660,49 @@ function renderLlmRuntimeStatus(data, leadSummary = "") {
 
   const wakeReady = Boolean(data.wake_on_lan_ready);
   const wakeEnabled = Boolean(data.wake_on_lan_enabled);
+  const controllerMode = String(data.engine_control_mode || "") === "controller";
+  const engineState = String(data.engine_state || "").toLowerCase();
   const hostReachable = Boolean(data.llm_host_reachable);
+  const engineWaking = !hostReachable && isEngineWakePending();
+  if (hostReachable || engineState === "ready") {
+    state.engineWakePendingUntil = 0;
+  }
   if (refs.llmHostBadge) {
-    if (data.llm_host_endpoint_host) {
-      refs.llmHostBadge.textContent = hostReachable ? "PC Online" : "PC Offline";
-      refs.llmHostBadge.className = `badge ${hostReachable ? "ok" : "fail"}`;
+    if (controllerMode) {
+      let controllerText = "Engine Unknown";
+      let controllerKind = "warn";
+      if (engineState === "ready") {
+        controllerText = "Engine Ready";
+        controllerKind = "ok";
+      } else if (engineState === "pc_online") {
+        controllerText = "Engine PC Online";
+        controllerKind = "warn";
+      } else if (engineState === "waking") {
+        controllerText = "Engine Waking";
+        controllerKind = "warn";
+      } else if (engineState === "offline") {
+        controllerText = "Engine Offline";
+        controllerKind = "fail";
+      } else if (data.engine_control_error) {
+        controllerText = "Engine Status Error";
+        controllerKind = "fail";
+      }
+      refs.llmHostBadge.textContent = controllerText;
+      refs.llmHostBadge.className = `badge ${controllerKind}`;
+    } else if (data.llm_host_endpoint_host) {
+      refs.llmHostBadge.textContent = hostReachable ? "Engine Online" : engineWaking ? "Engine Waking" : "Engine Offline";
+      refs.llmHostBadge.className = `badge ${hostReachable ? "ok" : engineWaking ? "warn" : "fail"}`;
     } else {
-      refs.llmHostBadge.textContent = "PC Unknown";
+      refs.llmHostBadge.textContent = "Engine Unknown";
       refs.llmHostBadge.className = "badge warn";
     }
   }
   refs.wakeEngineBtn.disabled = !wakeReady;
   refs.wakeEngineBtn.style.opacity = wakeReady ? "1" : "0.65";
   refs.wakeEngineBtn.title = wakeReady
-    ? `Send a Wake-on-LAN packet to ${data.llm_host_label || "the LLM host"}`
+    ? controllerMode
+      ? `Send wake request through engine controller for ${data.llm_host_label || "the LLM host"}`
+      : `Send a Wake-on-LAN packet to ${data.llm_host_label || "the LLM host"}`
     : "Wake-on-LAN is not ready. Set SIM_LLM_HOST_WOL_ENABLED=true and configure SIM_LLM_HOST_MAC.";
 
   let wakeLine = "Wake control: off";
@@ -613,9 +712,17 @@ function renderLlmRuntimeStatus(data, leadSummary = "") {
     wakeLine = `Wake control: enabled for ${data.llm_host_label || "LLM host"}, but MAC setup is incomplete.`;
   }
 
-  let hostLine = "LLM host: reachability unknown";
-  if (data.llm_host_endpoint_host && data.llm_host_endpoint_port) {
-    hostLine = `LLM host: ${hostReachable ? "online" : "offline"} at ${data.llm_host_endpoint_host}:${data.llm_host_endpoint_port}`;
+  let hostLine = "Engine: reachability unknown";
+  if (controllerMode) {
+    const stateText = engineState || "unknown";
+    if (data.llm_host_endpoint_host && data.llm_host_endpoint_port) {
+      hostLine = `Engine: ${stateText} at ${data.llm_host_endpoint_host}:${data.llm_host_endpoint_port} (controller mode)`;
+    } else {
+      hostLine = `Engine: ${stateText} (controller mode)`;
+    }
+  } else if (data.llm_host_endpoint_host && data.llm_host_endpoint_port) {
+    const effectiveState = hostReachable ? "online" : engineWaking ? "waking" : "offline";
+    hostLine = `Engine: ${effectiveState} at ${data.llm_host_endpoint_host}:${data.llm_host_endpoint_port}`;
   }
 
   const lines = [];
@@ -629,6 +736,24 @@ function renderLlmRuntimeStatus(data, leadSummary = "") {
   writeHumanAndJson(refs.llmStatusResult, lines.join("\n"), data);
 }
 
+async function waitForEngineStatusAfterWake() {
+  const deadline = Date.now() + 30000;
+  let lastData = null;
+
+  while (Date.now() < deadline) {
+    const data = await api("/v1/runtime/response-engine", { method: "GET", headers: {} });
+    lastData = data;
+    const state = String(data.engine_state || "").toLowerCase();
+    const controllerMode = String(data.engine_control_mode || "") === "controller";
+    if ((controllerMode && state === "ready") || (!controllerMode && (state === "ready" || data.llm_host_reachable))) {
+      return data;
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 2000));
+  }
+
+  return lastData;
+}
+
 async function loadLlmRuntimeStatus({ quiet = false } = {}) {
   if (!quiet) {
     setBusy(refs.llmStatusRefreshBtn, true);
@@ -640,7 +765,7 @@ async function loadLlmRuntimeStatus({ quiet = false } = {}) {
     refs.llmStatusBadge.textContent = "LLM Error";
     refs.llmStatusBadge.className = "badge fail";
     if (refs.llmHostBadge) {
-      refs.llmHostBadge.textContent = "PC Unknown";
+      refs.llmHostBadge.textContent = "Engine Unknown";
       refs.llmHostBadge.className = "badge warn";
     }
     refs.wakeEngineBtn.disabled = true;
@@ -653,6 +778,84 @@ async function loadLlmRuntimeStatus({ quiet = false } = {}) {
   }
 }
 
+function renderKbProviderStatus(data) {
+  state.kbProviderStatus = data;
+  if (!refs.kbProviderMeta) return;
+  if (!data?.enabled) {
+    refs.kbProviderMeta.textContent = "KB disabled";
+    return;
+  }
+  if (!data.ready) {
+    refs.kbProviderMeta.textContent = `KB not ready: ${data.reason || "configuration incomplete"}`;
+    return;
+  }
+  refs.kbProviderMeta.textContent = `${formatKebabLabel(data.provider)} ready | cached: ${data.cached_article_count ?? 0}`;
+}
+
+async function loadKbProviderStatus({ quiet = false } = {}) {
+  if (!refs.kbProviderMeta) return;
+  if (!quiet) {
+    setBusy(refs.kbStatusRefreshBtn, true);
+  }
+  try {
+    const data = await api("/v1/kb/providers/status", { method: "GET", headers: {} });
+    renderKbProviderStatus(data);
+  } catch (error) {
+    refs.kbProviderMeta.textContent = `KB error: ${error.message}`;
+  } finally {
+    if (!quiet) {
+      setBusy(refs.kbStatusRefreshBtn, false);
+    }
+  }
+}
+
+async function loadKbReviewQueue({ preserveSelection = true } = {}) {
+  if (!refs.kbQueueList) return;
+  const data = await api("/v1/kb/review-items", { method: "GET", headers: {} });
+  state.kbReviewItems = data.items || [];
+  renderKbReviewQueue();
+
+  if (!state.kbReviewItems.length) {
+    state.selectedKbReviewId = null;
+    refs.kbReviewResult.textContent = "No KB proposals yet.";
+    return;
+  }
+
+  const hasCurrent =
+    preserveSelection && state.selectedKbReviewId &&
+    state.kbReviewItems.some((item) => item.id === state.selectedKbReviewId);
+  const reviewItemId = hasCurrent ? state.selectedKbReviewId : state.kbReviewItems[0].id;
+  await loadKbReviewDetail(reviewItemId);
+}
+
+async function loadKbReviewDetail(reviewItemId) {
+  if (!reviewItemId) return;
+  state.selectedKbReviewId = reviewItemId;
+  renderKbReviewQueue();
+  const data = await api(`/v1/kb/review-items/${reviewItemId}`, { method: "GET", headers: {} });
+  const reviewItem = data.review_item || {};
+  const lines = [
+    `Proposal: ${reviewItem.title || "-"}`,
+    `Status: ${formatKebabLabel(reviewItem.status)}`,
+    `Action: ${formatKebabLabel(reviewItem.proposed_action)}`,
+    `Provider: ${reviewItem.provider || "-"}`,
+    `Source Ticket: ${reviewItem.source_ticket_id || "-"}`,
+    `Target Article: ${reviewItem.target_external_article_id || "New article"}`,
+    `Worthiness: ${reviewItem.kb_worthiness_score ?? 0}`,
+    `Recommendation: ${reviewItem.kb_worthiness_reason || "-"}`,
+    `Rationale: ${reviewItem.matching_rationale || "-"}`,
+    `Based On Tickets: ${(data.contributing_tickets || []).map((ticket) => ticket.id).join(", ") || reviewItem.source_ticket_id || "-"}`,
+    "",
+    "Draft Body:",
+    reviewItem.body_markdown || "-",
+  ];
+  if (data.target_article) {
+    lines.push("", `Matched Article Snapshot: ${data.target_article.title} (${data.target_article.external_article_id})`);
+  }
+  refs.kbReviewResult.textContent = lines.join("\n");
+  refs.kbReviewNotes.value = reviewItem.review_notes || "";
+}
+
 async function wakeEngineHost() {
   setBusy(refs.wakeEngineBtn, true);
   try {
@@ -660,8 +863,26 @@ async function wakeEngineHost() {
       method: "POST",
       headers: {},
     });
-    const statusData = await api("/v1/runtime/response-engine", { method: "GET", headers: {} });
-    renderLlmRuntimeStatus(statusData, wakeData.english_summary || "Wake signal sent.");
+    state.engineWakePendingUntil = Date.now() + 60000;
+    let statusData = null;
+    try {
+      statusData = await waitForEngineStatusAfterWake();
+    } catch {
+      statusData = null;
+    }
+    if (statusData) {
+      renderLlmRuntimeStatus(statusData, wakeData.english_summary || "Wake signal sent.");
+    } else {
+      writeHumanAndJson(
+        refs.llmStatusResult,
+        `${wakeData.english_summary || "Wake signal sent."}\n\nEngine is waking. Refresh status if it does not come online shortly.`,
+        wakeData
+      );
+      if (refs.llmHostBadge) {
+        refs.llmHostBadge.textContent = "Engine Waking";
+        refs.llmHostBadge.className = "badge warn";
+      }
+    }
   } catch (error) {
     writeLog(refs.llmStatusResult, `Wake engine failed: ${error.message}`);
   } finally {
@@ -858,6 +1079,31 @@ async function closeSingleTicket(ticketId, triggerButton = null) {
   }
 }
 
+async function proposeKnowledgeArticle(ticketId, triggerButton = null) {
+  if (!ticketId) return;
+  setBusy(triggerButton, true);
+  try {
+    const data = await api(`/v1/tickets/${ticketId}/kb/propose`, {
+      method: "POST",
+      headers: {},
+    });
+    writeHumanAndJson(
+      refs.actionResult,
+      data.english_summary || "KB proposal created.",
+      data
+    );
+    await loadKbProviderStatus({ quiet: true });
+    await loadKbReviewQueue({ preserveSelection: false });
+    if (data.review_item?.id) {
+      await loadKbReviewDetail(data.review_item.id);
+    }
+  } catch (error) {
+    writeLog(refs.actionResult, `KB proposal failed: ${error.message}`);
+  } finally {
+    setBusy(triggerButton, false);
+  }
+}
+
 async function generateKnowledgeDraft(ticketId, triggerButton = null) {
   if (!ticketId) return;
   setBusy(triggerButton, true);
@@ -880,6 +1126,121 @@ async function generateKnowledgeDraft(ticketId, triggerButton = null) {
     writeLog(refs.actionResult, `KB draft failed: ${error.message}`);
   } finally {
     setBusy(triggerButton, false);
+  }
+}
+
+async function syncKbProvider() {
+  setBusy(refs.kbSyncBtn, true);
+  try {
+    const data = await api("/v1/kb/sync", {
+      method: "POST",
+      headers: {},
+    });
+    writeHumanAndJson(refs.actionResult, data.english_summary || "KB sync completed.", data);
+    await loadKbProviderStatus({ quiet: true });
+    await loadKbReviewQueue();
+  } catch (error) {
+    writeLog(refs.actionResult, `KB sync failed: ${error.message}`);
+  } finally {
+    setBusy(refs.kbSyncBtn, false);
+  }
+}
+
+async function reviseKbReviewItem() {
+  const reviewItemId = state.selectedKbReviewId;
+  const instruction = refs.kbRevisionPrompt.value.trim();
+  if (!reviewItemId) {
+    writeLog(refs.kbReviewResult, "Select a KB proposal first.");
+    return;
+  }
+  if (!instruction) {
+    writeLog(refs.kbReviewResult, "Type a revision request first.");
+    return;
+  }
+
+  setBusy(refs.kbReviseBtn, true);
+  try {
+    const data = await api(`/v1/kb/review-items/${reviewItemId}/revise`, {
+      method: "POST",
+      headers: {},
+      body: JSON.stringify({ instruction }),
+    });
+    writeHumanAndJson(refs.actionResult, data.english_summary || "KB proposal revised.", data);
+    refs.kbRevisionPrompt.value = "";
+    await loadKbReviewQueue();
+  } catch (error) {
+    writeLog(refs.kbReviewResult, `KB revision failed: ${error.message}`);
+  } finally {
+    setBusy(refs.kbReviseBtn, false);
+  }
+}
+
+async function approveKbReviewItem() {
+  const reviewItemId = state.selectedKbReviewId;
+  if (!reviewItemId) {
+    writeLog(refs.kbReviewResult, "Select a KB proposal first.");
+    return;
+  }
+
+  setBusy(refs.kbApproveBtn, true);
+  try {
+    const data = await api(`/v1/kb/review-items/${reviewItemId}/approve`, {
+      method: "POST",
+      headers: {},
+      body: JSON.stringify({ notes: refs.kbReviewNotes.value.trim() }),
+    });
+    writeHumanAndJson(refs.actionResult, data.english_summary || "KB proposal approved.", data);
+    await loadKbReviewQueue();
+  } catch (error) {
+    writeLog(refs.kbReviewResult, `KB approve failed: ${error.message}`);
+  } finally {
+    setBusy(refs.kbApproveBtn, false);
+  }
+}
+
+async function publishKbReviewItem() {
+  const reviewItemId = state.selectedKbReviewId;
+  if (!reviewItemId) {
+    writeLog(refs.kbReviewResult, "Select a KB proposal first.");
+    return;
+  }
+
+  setBusy(refs.kbPublishBtn, true);
+  try {
+    const data = await api(`/v1/kb/review-items/${reviewItemId}/publish`, {
+      method: "POST",
+      headers: {},
+    });
+    writeHumanAndJson(refs.actionResult, data.english_summary || "KB proposal published.", data);
+    await loadKbProviderStatus({ quiet: true });
+    await loadKbReviewQueue();
+  } catch (error) {
+    writeLog(refs.kbReviewResult, `KB publish failed: ${error.message}`);
+  } finally {
+    setBusy(refs.kbPublishBtn, false);
+  }
+}
+
+async function rejectKbReviewItem() {
+  const reviewItemId = state.selectedKbReviewId;
+  if (!reviewItemId) {
+    writeLog(refs.kbReviewResult, "Select a KB proposal first.");
+    return;
+  }
+
+  setBusy(refs.kbRejectBtn, true);
+  try {
+    const data = await api(`/v1/kb/review-items/${reviewItemId}/reject`, {
+      method: "POST",
+      headers: {},
+      body: JSON.stringify({ notes: refs.kbReviewNotes.value.trim() }),
+    });
+    writeHumanAndJson(refs.actionResult, data.english_summary || "KB proposal rejected.", data);
+    await loadKbReviewQueue();
+  } catch (error) {
+    writeLog(refs.kbReviewResult, `KB reject failed: ${error.message}`);
+  } finally {
+    setBusy(refs.kbRejectBtn, false);
   }
 }
 
@@ -1337,7 +1698,15 @@ function toggleThemePanel() {
 async function refreshAll() {
   setBusy(refs.refreshBtn, true);
   try {
-    await Promise.all([loadHealth(), loadProfiles(), loadCatalog(), loadSessions(), loadLlmRuntimeStatus()]);
+    await Promise.all([
+      loadHealth(),
+      loadProfiles(),
+      loadCatalog(),
+      loadSessions(),
+      loadLlmRuntimeStatus(),
+      loadKbProviderStatus({ quiet: true }),
+      loadKbReviewQueue(),
+    ]);
     if (state.selectedSessionId) {
       await loadSessionDetail(state.selectedSessionId);
     }
@@ -1362,6 +1731,19 @@ refs.weeklyReportBtn.addEventListener("click", () => loadReport("weekly"));
 refs.llmStatusRefreshBtn.addEventListener("click", () => loadLlmRuntimeStatus());
 refs.wakeEngineBtn.addEventListener("click", wakeEngineHost);
 refs.mentorBtn.addEventListener("click", askMentor);
+refs.kbStatusRefreshBtn.addEventListener("click", async () => {
+  setBusy(refs.kbStatusRefreshBtn, true);
+  try {
+    await Promise.all([loadKbProviderStatus({ quiet: true }), loadKbReviewQueue()]);
+  } finally {
+    setBusy(refs.kbStatusRefreshBtn, false);
+  }
+});
+refs.kbSyncBtn.addEventListener("click", syncKbProvider);
+refs.kbReviseBtn.addEventListener("click", reviseKbReviewItem);
+refs.kbApproveBtn.addEventListener("click", approveKbReviewItem);
+refs.kbPublishBtn.addEventListener("click", publishKbReviewItem);
+refs.kbRejectBtn.addEventListener("click", rejectKbReviewItem);
 refs.showRawJson.addEventListener("change", () => applyRawDisplayMode(refs.showRawJson.value, true));
 refs.profileSelect.addEventListener("change", renderSelectedProfileSummary);
 refs.manualTierSelect.addEventListener("change", renderScenarioOptions);

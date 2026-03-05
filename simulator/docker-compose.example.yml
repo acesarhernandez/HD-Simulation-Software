@@ -23,6 +23,10 @@ services:
       SIM_RESPONSE_ENGINE: rule_based
       SIM_OLLAMA_URL: http://100.64.0.20:11434
       SIM_OLLAMA_MODEL: llama3.1:8b
+      SIM_ENGINE_CONTROL_URL: ""
+      SIM_ENGINE_CONTROL_API_KEY: ""
+      SIM_ENGINE_AUTO_WAKE: "true"
+      SIM_ENGINE_AUTO_WAKE_TIMEOUT_SECONDS: 90
     volumes:
       - ./data:/app/data
     restart: unless-stopped

@@ -27,7 +27,8 @@ V2 keeps that foundation and adds optional LLM behavior where it improves realis
 - **Professionalism review:** analyst tone can be checked and called out in post-close coaching.
 - **Mentor operations guidance:** the mentor path can coach on communication, SLA, escalation, documentation, and help desk best practices, not just technical fixes.
 - **Scenario expression variety:** same underlying truth, but more variation in ticket wording and user tone.
-- **Optional wake control:** the UI can expose a Wake-on-LAN action for the LLM host PC when configured.
+- **Shared engine control mode:** when configured, wake/status calls are proxied through a homelab engine-control service while direct Ollama inference stays local to the simulator.
+- **Manual KB proposal workflow:** propose an article from a closed ticket, review and revise the draft, then publish it to an external KB provider.
 
 ## V2 Design Rules
 
@@ -51,6 +52,7 @@ This keeps the simulator realistic without letting AI drift break scoring, troub
 - Optional mentor/escalation chat panel in the UI to simulate consulting a senior tech or sysadmin.
 - Optional mentor guidance that can answer ticket-operation questions about wording, SLA handling, escalation decisions, triage, and documentation while staying grounded in the selected ticket.
 - Hint responses that stay grounded in the structured hint bank, but can be reworded by the LLM into more natural coaching language.
+- Manual KB proposal and review queue with ticket traceability, revision history, and provider-backed publish flow.
 
 ## What v1 Includes
 
@@ -64,23 +66,24 @@ This keeps the simulator realistic without letting AI drift break scoring, troub
 - Persona-based customer identities (HR/Finance/etc.) that first reuse existing Zammad department users, then auto-create customer + organization records if needed.
 - Hint system with configurable score penalties.
 - SLA-aware grading model and performance reports.
-- Knowledge article links at scenario level (backend-ready for KB workflows).
+- Knowledge article links at scenario level plus a manual KB proposal system for closed tickets.
 - New simulator-created tickets are sent to Zammad as `new` and unassigned.
 - Dashboard includes a compact day-profile quick look inside Shift Control plus manual ticket generation by filters.
 - Dashboard includes mass clock-out, light/dark/auto theme toggle, and readable hint/report summaries with raw JSON.
 - Trickle delivery mode enabled by default so tickets arrive gradually instead of all at once.
 - Optional v2 response engine integration point for remote Ollama.
 - Optional opening-message rewrite in `v2` so initial ticket bodies can vary without changing scenario truth.
+- Optional `KB Review` panel in the dashboard for draft inspection, revision, approval, and publish actions.
 
 ## Architecture
 
 The backend is intentionally split into stable modules so you can swap components without rewriting the whole stack.
 
-- `api/`: HTTP endpoints for session control, hints, and reports.
+- `api/`: HTTP endpoints for session control, hints, reports, and KB review workflow.
 - `services/`: scheduler, poller, generation, grading, and reporting logic.
-- `adapters/`: Zammad gateway and dry-run gateway.
+- `adapters/`: Zammad gateway, dry-run gateway, and external KB provider adapters.
 - `templates/`: profiles, personas, and scenarios in YAML.
-- `repositories/`: SQLite persistence for sessions, tickets, interactions, reports.
+- `repositories/`: SQLite persistence for sessions, tickets, interactions, reports, and KB draft/review state.
 
 Core runtime flow:
 
@@ -132,9 +135,14 @@ Open API docs:
 - [http://localhost:8079/ui](http://localhost:8079/ui) (Dashboard)
 - [http://localhost:8079/ui/guide](http://localhost:8079/ui/guide) (Plain-language guide)
 - [http://localhost:8079/v1/runtime/response-engine](http://localhost:8079/v1/runtime/response-engine) (Response engine status)
-- `POST /v1/runtime/wake-llm-host` (Optional Wake-on-LAN trigger for the LLM PC)
+- `POST /v1/runtime/wake-llm-host` (Manual wake trigger; proxies to engine-controller when configured, otherwise uses legacy local WoL fallback)
 - `POST /v1/tickets/<ticket_id>/coach` (Post-close coaching note grounded in deterministic grading data)
 - `POST /v1/tickets/<ticket_id>/mentor` (Internal mentor / escalation guidance for the selected ticket)
+- `POST /v1/tickets/<ticket_id>/kb/propose` (Manual KB proposal from a closed ticket)
+- `GET /v1/kb/review-items` (Review queue)
+- `POST /v1/kb/review-items/<review_item_id>/revise` (Revise a KB draft)
+- `POST /v1/kb/review-items/<review_item_id>/approve` (Approve a draft for publish)
+- `POST /v1/kb/review-items/<review_item_id>/publish` (Publish to the configured KB provider)
 
 Dashboard highlights:
 
@@ -142,12 +150,13 @@ Dashboard highlights:
 - Active sessions are surfaced beside manual generation so live shift selection stays close to ticket creation.
 - Manual ticket generation controls by session, tier, ticket type, department, persona, or scenario.
 - Ticket detail panel showing operational metadata, recent interactions, and linked knowledge articles.
-- Ticket detail actions for close/delete (single and bulk) plus KB draft generation for closed tickets.
+- Ticket detail actions for close/delete (single and bulk) plus manual KB proposal generation for closed tickets.
 - Ticket detail includes a `Coach` action that sends a closed ticket to the coaching endpoint and shows the result in the same panel.
 - Ticket delete actions now attempt linked Zammad ticket deletion first, then remove simulator records.
 - Hint requests directly in UI with penalty visibility plus plain-English summaries.
-- LLM runtime status now reports whether the configured LLM host appears reachable right now, not just whether Wake-on-LAN is configured.
-- LLM runtime includes a dedicated PC online/offline badge based on LLM host reachability.
+- `KB Review` panel shows the draft queue, source-ticket lineage, revision prompt, approval notes, and publish controls.
+- LLM runtime status can merge engine-controller state (`offline`, `waking`, `pc_online`, `ready`) when controller mode is configured.
+- LLM runtime includes a dedicated engine status badge and keeps existing wake/status routes stable.
 - A top-level request badge and per-button busy states show when the UI is actively polling, generating, asking the mentor, or sending a wake request.
 - Wake-on-LAN works best when the simulator process sending the packet is on the same LAN as the target PC. A remote Mac instance will usually not be able to send a directed broadcast to your home LAN.
 - A dedicated `Mentor Console` lets you ask for higher-tier guidance on a selected ticket without affecting the simulated end-user conversation, including troubleshooting, communication, SLA, escalation, and documentation questions.
@@ -190,6 +199,15 @@ SIM_RESPONSE_ENGINE=ollama
 SIM_OLLAMA_FALLBACK_TO_RULE_BASED=true
 ```
 
+Recommended `v2` controller mode add-on:
+
+```env
+SIM_ENGINE_CONTROL_URL=http://192.168.86.33:8089
+SIM_ENGINE_CONTROL_API_KEY=<ENGINE_API_KEY>
+SIM_ENGINE_AUTO_WAKE=true
+SIM_ENGINE_AUTO_WAKE_TIMEOUT_SECONDS=90
+```
+
 Windows LLM host setup guide:
 
 - [../docs/windows-llm-host-setup.md](../docs/windows-llm-host-setup.md)
@@ -210,11 +228,25 @@ Environment variables use the `SIM_` prefix.
 - `SIM_OLLAMA_MODEL`: model name for the remote LLM.
 - `SIM_OLLAMA_FALLBACK_TO_RULE_BASED`: if `true`, Ollama failures fall back to rule-based replies.
 - `SIM_OLLAMA_REWRITE_OPENING_TICKETS`: if `true`, `v2` can rewrite the opening ticket body with the LLM while keeping the same hidden truth.
+- `SIM_ENGINE_CONTROL_URL`: optional shared homelab engine-controller base URL (for example `http://192.168.86.33:8089`).
+- `SIM_ENGINE_CONTROL_API_KEY`: bearer token for engine-controller auth.
+- `SIM_ENGINE_AUTO_WAKE`: if `true`, LLM-backed paths call `ensure-ready` before Ollama generation when controller mode is configured.
+- `SIM_ENGINE_AUTO_WAKE_TIMEOUT_SECONDS`: timeout passed to engine-controller `ensure-ready`.
 - `SIM_LLM_HOST_LABEL`: UI label for the optional LLM host machine.
-- `SIM_LLM_HOST_WOL_ENABLED`: enables the Wake-on-LAN button and backend endpoint.
-- `SIM_LLM_HOST_MAC`: target MAC address for the LLM host (use the physical Ethernet adapter MAC if the PC wakes over wired LAN).
-- `SIM_LLM_HOST_WOL_BROADCAST_IP`: broadcast IP used to send the magic packet.
-- `SIM_LLM_HOST_WOL_PORT`: UDP port used for Wake-on-LAN (commonly `7` or `9`).
+- `SIM_LLM_HOST_WOL_ENABLED`: legacy local Wake-on-LAN fallback (used as primary only when controller mode is not configured).
+- `SIM_LLM_HOST_MAC`: legacy local fallback MAC address (use physical Ethernet adapter MAC if the PC wakes over wired LAN).
+- `SIM_LLM_HOST_WOL_BROADCAST_IP`: legacy local fallback broadcast IP.
+- `SIM_LLM_HOST_WOL_PORT`: legacy local fallback UDP port (commonly `7` or `9`).
+- `SIM_KB_ENABLED`: turns on the KB proposal/review workflow.
+- `SIM_KB_PROVIDER`: current provider name (`zammad` for first implementation).
+- `SIM_KB_REVIEW_REQUIRED`: requires approval before publish.
+- `SIM_KB_MIN_SCORE`: minimum score used for KB-worthiness recommendations.
+- `SIM_KB_SYNC_ON_START`: if `true`, syncs the KB article cache on app startup.
+- `SIM_KB_SYNC_INTERVAL_SECONDS`: reserved for future scheduled KB cache refresh logic.
+- `SIM_KB_ZAMMAD_KB_ID`: target Zammad knowledge base ID.
+- `SIM_KB_ZAMMAD_LOCALE_ID`: target Zammad locale ID.
+- `SIM_KB_ZAMMAD_DEFAULT_CATEGORY_ID`: default Zammad KB category for new articles.
+- `SIM_KB_ZAMMAD_PUBLISH_MODE`: `internal` or `public`.
 - `SIM_DB_PATH`: SQLite file path.
 - `SIM_POLL_INTERVAL_SECONDS`: how often poller checks for updates.
 - `SIM_SCHEDULER_INTERVAL_SECONDS`: how often scheduler checks for due windows.
@@ -225,7 +257,7 @@ Wake-on-LAN routing note:
 
 - The simulator can only send a normal Wake-on-LAN broadcast if the machine running the simulator has a route to the target LAN broadcast address.
 - If you run `v2` locally on a remote Mac and point Wake-on-LAN at a home LAN broadcast (for example `192.168.86.255`), macOS may return `No route to host`.
-- In that remote-use case, the reliable option is to run the wake action from your homelab instance on the home network, or expose a small wake relay on the homelab.
+- In that remote-use case, the reliable option is controller mode (`SIM_ENGINE_CONTROL_URL`) with wake/readiness handled by your homelab service.
 
 ## Clock-In Workflow
 
@@ -321,6 +353,36 @@ Linked knowledge articles for a ticket:
 
 ```bash
 curl http://localhost:8079/v1/tickets/<ticket_id>/knowledge-articles
+```
+
+Create a manual KB proposal from a closed ticket:
+
+```bash
+curl -X POST http://localhost:8079/v1/tickets/<ticket_id>/kb/propose
+```
+
+List the KB review queue:
+
+```bash
+curl http://localhost:8079/v1/kb/review-items
+```
+
+Revise a KB proposal:
+
+```bash
+curl -X POST http://localhost:8079/v1/kb/review-items/<review_item_id>/revise \
+  -H "Content-Type: application/json" \
+  -d '{"instruction":"Shorten this article and keep the scope narrow."}'
+```
+
+Approve and publish a KB proposal:
+
+```bash
+curl -X POST http://localhost:8079/v1/kb/review-items/<review_item_id>/approve \
+  -H "Content-Type: application/json" \
+  -d '{"notes":"Reviewer approved for internal publication."}'
+
+curl -X POST http://localhost:8079/v1/kb/review-items/<review_item_id>/publish
 ```
 
 Post-close coaching note for a completed ticket:

@@ -40,11 +40,26 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.1:8b"
     ollama_fallback_to_rule_based: bool = True
     ollama_rewrite_opening_tickets: bool = True
+    engine_control_url: str = ""
+    engine_control_api_key: str = ""
+    engine_auto_wake: bool = True
+    engine_auto_wake_timeout_seconds: int = 90
     llm_host_label: str = "LLM PC"
     llm_host_wol_enabled: bool = False
     llm_host_mac: str = ""
     llm_host_wol_broadcast_ip: str = "255.255.255.255"
     llm_host_wol_port: int = 9
+
+    kb_enabled: bool = False
+    kb_provider: str = "zammad"
+    kb_review_required: bool = True
+    kb_min_score: int = 60
+    kb_sync_on_start: bool = True
+    kb_sync_interval_seconds: int = 900
+    kb_zammad_kb_id: int = 0
+    kb_zammad_locale_id: int = 0
+    kb_zammad_default_category_id: int = 0
+    kb_zammad_publish_mode: str = "internal"
 
     def resolve_db_path(self, cwd: Path) -> Path:
         return self.db_path if self.db_path.is_absolute() else (cwd / self.db_path).resolve()

@@ -42,7 +42,10 @@
       <header class="hero reveal">
         <div>
           <p class="eyebrow">Operations Console</p>
-          <h1>HD Simulation Software</h1>
+          <div class="hero-title-row">
+            <h1>HD Simulation Software</h1>
+            <span class="badge badge-dev">V2 Beta</span>
+          </div>
           <p class="subtitle">
             Run training shifts, trigger queue activity, request hints, and review score trends from one place.
           </p>
@@ -252,7 +255,7 @@
             <h2>LLM Runtime</h2>
             <div class="panel-actions">
               <span id="llmStatusBadge" class="badge">Checking LLM...</span>
-              <span id="llmHostBadge" class="badge">Checking PC...</span>
+              <span id="llmHostBadge" class="badge">Checking Engine...</span>
               <button id="llmStatusRefreshBtn" class="btn" data-busy-label="Checking...">Refresh LLM Status</button>
               <button id="wakeEngineBtn" class="btn btn-warn" data-busy-label="Waking...">Wake Engine PC</button>
             </div>
@@ -285,6 +288,50 @@
           <button id="mentorBtn" class="btn" data-busy-label="Asking...">Ask Mentor</button>
         </div>
         <pre id="mentorResult" class="log-box">Ask about troubleshooting, communication, SLA, escalation, documentation, or help desk best practices for the selected ticket.</pre>
+      </section>
+
+      <section class="panel reveal" style="--delay: 0.295s">
+        <div class="panel-head">
+          <h2>KB Review (Beta)</h2>
+          <div class="panel-actions">
+            <span id="kbProviderMeta" class="meta">Checking KB provider...</span>
+            <button id="kbStatusRefreshBtn" class="btn" data-busy-label="Refreshing...">Refresh Queue</button>
+            <button id="kbSyncBtn" class="btn" data-busy-label="Syncing...">Sync KB</button>
+          </div>
+        </div>
+        <p class="mini-help">
+          KB proposals are manual and review-driven. This v2 beta workflow is still evolving. Create them from closed tickets, then revise, approve, and publish them here.
+        </p>
+        <div class="kb-review-grid">
+          <div class="kb-queue-column">
+            <div id="kbQueueList" class="session-list empty">No KB proposals yet.</div>
+          </div>
+          <div class="kb-detail-column">
+            <pre id="kbReviewResult" class="log-box">Select a KB proposal to inspect the draft, target article, and ticket lineage.</pre>
+            <label class="field">
+              <span>Review Notes</span>
+              <textarea
+                id="kbReviewNotes"
+                rows="3"
+                placeholder="Reviewer notes for approval or rejection"
+              ></textarea>
+            </label>
+            <label class="field">
+              <span>Revision Request</span>
+              <textarea
+                id="kbRevisionPrompt"
+                rows="3"
+                placeholder="Example: Shorten this article, preserve scope, and move the new material into Validation."
+              ></textarea>
+            </label>
+            <div class="report-actions kb-review-actions">
+              <button id="kbReviseBtn" class="btn" data-busy-label="Revising...">Revise</button>
+              <button id="kbApproveBtn" class="btn" data-busy-label="Approving...">Approve</button>
+              <button id="kbPublishBtn" class="btn btn-primary" data-busy-label="Publishing...">Publish</button>
+              <button id="kbRejectBtn" class="btn btn-danger" data-busy-label="Rejecting...">Reject</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="panel reveal" style="--delay: 0.3s">

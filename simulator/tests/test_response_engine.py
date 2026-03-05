@@ -156,3 +156,28 @@ def test_ollama_engine_rejects_vague_llm_output_and_falls_back(monkeypatch) -> N
     assert status["active_mode"] == "fallback_rule_based"
     assert status["fallback_reply_count"] == 1
     assert "vague response" in str(status["last_error"])
+
+
+def test_ollama_engine_falls_back_when_engine_preflight_fails() -> None:
+    class FailingReadiness:
+        def ensure_ready_for_llm(self) -> None:
+            raise RuntimeError("engine ensure-ready failed: engine offline")
+
+    engine = OllamaResponseEngine(
+        base_url="http://127.0.0.1:11434",
+        model="llama3.1:8b",
+        fallback_engine=RuleBasedResponseEngine(),
+        engine_readiness=FailingReadiness(),  # type: ignore[arg-type]
+    )
+    hidden_truth = {
+        "ticket_type": "password_reset",
+        "clue_map": {},
+        "default_follow_up": "I can try steps while you stay on the ticket.",
+    }
+
+    reply = engine.generate_reply("Where are you trying to sign in?", hidden_truth)
+    status = engine.describe_status()
+
+    assert "Windows workstation" in reply
+    assert status["active_mode"] == "fallback_rule_based"
+    assert "ensure-ready failed" in str(status["last_error"])

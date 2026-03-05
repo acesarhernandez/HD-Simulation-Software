@@ -6,6 +6,7 @@ from typing import Protocol
 import httpx
 
 from helpdesk_sim.domain.models import HintLevel
+from helpdesk_sim.services.engine_control_client import EngineReadinessCoordinator
 
 
 class ResponseEngine(Protocol):
@@ -115,6 +116,7 @@ class OllamaResponseEngine:
     model: str
     timeout_seconds: float = 30.0
     fallback_engine: ResponseEngine | None = None
+    engine_readiness: EngineReadinessCoordinator | None = None
     successful_llm_reply_count: int = 0
     fallback_reply_count: int = 0
     last_reply_mode: str = "not_used_yet"
@@ -135,6 +137,8 @@ class OllamaResponseEngine:
             "stream": False,
         }
         try:
+            if self.engine_readiness is not None:
+                self.engine_readiness.ensure_ready_for_llm()
             with httpx.Client(base_url=self.base_url, timeout=self.timeout_seconds) as client:
                 response = client.post("/api/generate", json=payload)
                 response.raise_for_status()
