@@ -97,6 +97,45 @@ def test_fetch_new_articles_preserves_internal_flag() -> None:
     assert articles[2].should_trigger_reply is True
 
 
+def test_fetch_new_articles_maps_sender_id_when_sender_text_is_missing() -> None:
+    gateway = ZammadHttpGateway(
+        base_url="http://zammad.local",
+        token="token",
+        customer_fallback_email="",
+    )
+
+    def fake_request(method: str, path: str, json: dict[str, object] | None = None) -> object:
+        assert method == "GET"
+        assert path == "/api/v1/ticket_articles/by_ticket/145"
+        assert json is None
+        return [
+            {
+                "id": 410,
+                "body": "Agent response with sender_id only",
+                "sender": "",
+                "sender_id": 1,
+                "internal": False,
+            },
+            {
+                "id": 411,
+                "body": "Customer follow-up with sender_id only",
+                "sender": None,
+                "sender_id": 2,
+                "internal": False,
+            },
+        ]
+
+    gateway._request = fake_request  # type: ignore[method-assign]
+
+    articles = gateway.fetch_new_articles(145, after_article_id=0)
+
+    assert [article.id for article in articles] == [410, 411]
+    assert articles[0].sender == "Agent"
+    assert articles[1].sender == "Customer"
+    assert articles[0].should_trigger_reply is True
+    assert articles[1].should_trigger_reply is False
+
+
 def test_create_ticket_uses_fallback_when_persona_customer_resolution_fails() -> None:
     gateway = ZammadHttpGateway(
         base_url="http://zammad.local",

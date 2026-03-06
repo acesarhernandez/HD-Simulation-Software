@@ -162,7 +162,7 @@ class ZammadHttpGateway:
             if article_id <= after_article_id:
                 continue
             body = str(item.get("body") or item.get("content") or "").strip()
-            sender = str(item.get("sender") or item.get("from") or "unknown")
+            sender = self._normalize_article_sender(item)
             internal = bool(item.get("internal", False))
             articles.append(
                 TicketArticle(
@@ -173,6 +173,44 @@ class ZammadHttpGateway:
                 )
             )
         return sorted(articles, key=lambda article: article.id)
+
+    @staticmethod
+    def _coerce_int(value: object) -> int | None:
+        try:
+            if value is None:
+                return None
+            return int(str(value).strip())
+        except Exception:
+            return None
+
+    @classmethod
+    def _normalize_article_sender(cls, item: dict[str, Any]) -> str:
+        sender_raw = item.get("sender")
+        from_raw = item.get("from")
+        sender_id = cls._coerce_int(item.get("sender_id"))
+
+        sender_text = str(sender_raw or "").strip()
+        sender_lower = sender_text.lower()
+
+        if sender_lower in {"agent", "customer", "system"}:
+            return sender_text
+
+        if sender_lower in {"1", "2", "3"}:
+            sender_id = cls._coerce_int(sender_lower)
+            sender_text = ""
+
+        if sender_id == 1:
+            return "Agent"
+        if sender_id == 2:
+            return "Customer"
+        if sender_id == 3:
+            return "System"
+
+        if sender_text:
+            return sender_text
+
+        from_text = str(from_raw or "").strip()
+        return from_text or "unknown"
 
     def post_customer_reply(self, zammad_ticket_id: int, body: str, subject: str) -> None:
         payload = {

@@ -6,6 +6,15 @@ The format is inspired by Keep a Changelog and uses semantic versioning.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-03-05
+
+### Fixed
+- Poller now handles Zammad article sender metadata when `sender` text is missing or numeric and `sender_id` is present.
+- Agent replies are correctly detected from `sender_id` mapping (`1=Agent`, `2=Customer`, `3=System`) to avoid missed simulated user responses.
+
+### Changed
+- Simulator version bumped from `0.2.1` to `0.2.2`.
+
 ## [0.2.1] - 2026-03-05
 
 ### Added
