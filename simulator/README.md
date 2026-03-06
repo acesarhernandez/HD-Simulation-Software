@@ -11,8 +11,9 @@ This service generates realistic ticket traffic, listens for analyst responses, 
   - Default response engine: `rule_based`
 - **V2 (in development):** [https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev](https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev)
   - Primary target: same backend with optional remote LLM endpoint
-  - Planned response engine mode: `ollama`
+  - Response engine mode: optional `ollama` with deterministic fallback
   - If the LLM is unavailable, the simulator can fall back to rule-based replies
+  - Version line follows milestone tags (`v2.x.y`)
 
 ## What LLM Changes In V2
 
@@ -29,6 +30,7 @@ V2 keeps that foundation and adds optional LLM behavior where it improves realis
 - **Scenario expression variety:** same underlying truth, but more variation in ticket wording and user tone.
 - **Shared engine control mode:** when configured, wake/status calls are proxied through a homelab engine-control service while direct Ollama inference stays local to the simulator.
 - **Manual KB proposal workflow:** propose an article from a closed ticket, review and revise the draft, then publish it to an external KB provider.
+- **Hidden God Mode training:** optional guided route (`/god`) with phase-by-phase walkthrough coaching, attempt-vs-ideal comparison, draft helpers, and separate guided-training reports.
 
 ## V2 Design Rules
 
@@ -53,6 +55,7 @@ This keeps the simulator realistic without letting AI drift break scoring, troub
 - Optional mentor guidance that can answer ticket-operation questions about wording, SLA handling, escalation decisions, triage, and documentation while staying grounded in the selected ticket.
 - Hint responses that stay grounded in the structured hint bank, but can be reworded by the LLM into more natural coaching language.
 - Manual KB proposal and review queue with ticket traceability, revision history, and provider-backed publish flow.
+- Hidden God Mode walkthrough enhancements for beginner-safe ticket handling phases and replay-driven training.
 
 ## What v1 Includes
 
@@ -74,6 +77,18 @@ This keeps the simulator realistic without letting AI drift break scoring, troub
 - Optional v2 response engine integration point for remote Ollama.
 - Optional opening-message rewrite in `v2` so initial ticket bodies can vary without changing scenario truth.
 - Optional `KB Review` panel in the dashboard for draft inspection, revision, approval, and publish actions.
+- Optional hidden `/god` guided training route with separate scoring/reports.
+
+## God Mode (Hidden Guided Training)
+
+God Mode is an opt-in training assist for beginner analysts.
+
+- Access route: `/god`
+- No link is shown in `/ui` or `/ui/guide`
+- Optional key gate: return `404` unless correct key is provided
+- Training flow: intake -> identity/security -> impact -> communication -> troubleshooting -> least privilege -> resolve/escalate -> documentation -> closure -> replay
+- Draft helpers: public reply, internal note, escalation handoff
+- Separate reporting mode (`guided_training`) when enabled
 
 ## Architecture
 
@@ -134,6 +149,7 @@ Open API docs:
 - [http://localhost:8079/docs](http://localhost:8079/docs)
 - [http://localhost:8079/ui](http://localhost:8079/ui) (Dashboard)
 - [http://localhost:8079/ui/guide](http://localhost:8079/ui/guide) (Plain-language guide)
+- [http://localhost:8079/god](http://localhost:8079/god) (Hidden guided training route; requires enable flag and optional key)
 - [http://localhost:8079/v1/runtime/response-engine](http://localhost:8079/v1/runtime/response-engine) (Response engine status)
 - `POST /v1/runtime/wake-llm-host` (Manual wake trigger; proxies to engine-controller when configured, otherwise uses legacy local WoL fallback)
 - `POST /v1/tickets/<ticket_id>/coach` (Post-close coaching note grounded in deterministic grading data)
@@ -143,6 +159,16 @@ Open API docs:
 - `POST /v1/kb/review-items/<review_item_id>/revise` (Revise a KB draft)
 - `POST /v1/kb/review-items/<review_item_id>/approve` (Approve a draft for publish)
 - `POST /v1/kb/review-items/<review_item_id>/publish` (Publish to the configured KB provider)
+- `GET /v1/god/config` (God mode config/status)
+- `POST /v1/god/tickets/<ticket_id>/start` (Start guided walkthrough)
+- `GET /v1/god/tickets/<ticket_id>/walkthrough` (Phase and gate status)
+- `POST /v1/god/tickets/<ticket_id>/phase/<phase_key>/attempt` (Submit trainee attempt)
+- `POST /v1/god/tickets/<ticket_id>/phase/<phase_key>/advance` (Advance phase if gate passed)
+- `POST /v1/god/tickets/<ticket_id>/draft/public-reply` (Generate guided public draft)
+- `POST /v1/god/tickets/<ticket_id>/draft/internal-note` (Generate guided internal note)
+- `POST /v1/god/tickets/<ticket_id>/draft/escalation-handoff` (Generate escalation handoff draft)
+- `GET /v1/god/tickets/<ticket_id>/replay` (Attempt-vs-ideal replay)
+- `GET /v1/god/reports/daily` / `GET /v1/god/reports/weekly` (Guided-only reports)
 
 Dashboard highlights:
 
@@ -247,6 +273,11 @@ Environment variables use the `SIM_` prefix.
 - `SIM_KB_ZAMMAD_LOCALE_ID`: target Zammad locale ID.
 - `SIM_KB_ZAMMAD_DEFAULT_CATEGORY_ID`: default Zammad KB category for new articles.
 - `SIM_KB_ZAMMAD_PUBLISH_MODE`: `internal` or `public`.
+- `SIM_GOD_MODE_ENABLED`: enables hidden `/god` route and `/v1/god/*` APIs.
+- `SIM_GOD_MODE_ACCESS_KEY`: optional key required for `/god` bootstrap and `/v1/god/*` calls.
+- `SIM_GOD_MODE_DEFAULT_ATTEMPT_FIRST`: if `true`, trainee submits an attempt before ideal guidance.
+- `SIM_GOD_MODE_REVEAL_MODE`: truth reveal mode (`guided` recommended).
+- `SIM_GOD_MODE_SEPARATE_REPORTS`: keep guided reports separate from standard practice reports.
 - `SIM_DB_PATH`: SQLite file path.
 - `SIM_POLL_INTERVAL_SECONDS`: how often poller checks for updates.
 - `SIM_SCHEDULER_INTERVAL_SECONDS`: how often scheduler checks for due windows.
@@ -258,6 +289,16 @@ Wake-on-LAN routing note:
 - The simulator can only send a normal Wake-on-LAN broadcast if the machine running the simulator has a route to the target LAN broadcast address.
 - If you run `v2` locally on a remote Mac and point Wake-on-LAN at a home LAN broadcast (for example `192.168.86.255`), macOS may return `No route to host`.
 - In that remote-use case, the reliable option is controller mode (`SIM_ENGINE_CONTROL_URL`) with wake/readiness handled by your homelab service.
+
+## V2 Release Workflow
+
+Use the v2 release gate before tagging milestones:
+
+- Runbook: [../docs/release-runbook-v2.md](../docs/release-runbook-v2.md)
+- Release template: [../.github/release-template.md](../.github/release-template.md)
+- Commands (from `simulator/`):
+  - `make release-check`
+  - `make release-notes`
 
 ## Clock-In Workflow
 

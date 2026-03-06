@@ -5,12 +5,17 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from helpdesk_sim import __version__
 from helpdesk_sim.domain.models import (
     ClockInRequest,
+    GodModeAdvanceRequest,
+    GodModeAttemptRequest,
+    GodModeDraftRequest,
+    GodModeStartRequest,
     HintRequest,
     KnowledgeReviewDecisionRequest,
     KnowledgeReviewStatus,
     KnowledgeRevisionRequest,
     ManualTicketRequest,
     MentorRequest,
+    ScoreMode,
 )
 from helpdesk_sim.services.engine_control_client import (
     is_engine_ready_state,
@@ -455,24 +460,26 @@ def close_ticket(request: Request, ticket_id: str) -> dict[str, object]:
             "english_summary": f"Ticket {ticket_id} is already closed.",
         }
 
+    manual_score = {
+        "manual_close": True,
+        "reason": "closed from simulator dashboard",
+        "score": {
+            "troubleshooting": 0,
+            "correctness": 0,
+            "communication": 0,
+            "documentation": 0,
+            "sla": 0,
+            "escalation": 0,
+            "hint_penalty": 0,
+            "total": 0,
+        },
+        "metrics": {},
+        "missed_checks": [],
+    }
+    manual_score = runtime.god_mode_service.tag_score_payload(ticket, manual_score)
     runtime.repository.close_ticket(
         ticket_id=ticket_id,
-        score={
-            "manual_close": True,
-            "reason": "closed from simulator dashboard",
-            "score": {
-                "troubleshooting": 0,
-                "correctness": 0,
-                "communication": 0,
-                "documentation": 0,
-                "sla": 0,
-                "escalation": 0,
-                "hint_penalty": 0,
-                "total": 0,
-            },
-            "metrics": {},
-            "missed_checks": [],
-        },
+        score=manual_score,
     )
     return {
         "ticket_id": ticket_id,
@@ -647,6 +654,10 @@ def close_all_tickets_for_session(request: Request, session_id: str) -> dict[str
             },
             "metrics": {},
             "missed_checks": [],
+            "meta": {
+                "score_mode": ScoreMode.practice.value,
+                "god_mode_used": False,
+            },
         },
     )
     return {
@@ -741,10 +752,168 @@ async def run_poller_once(request: Request) -> dict[str, int]:
     return await runtime.workers.run_poller_once()
 
 
+@router.get("/v1/god/config")
+def get_god_config(request: Request) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    settings = runtime.settings
+    return {
+        "enabled": bool(settings.god_mode_enabled),
+        "key_required": bool(settings.god_mode_access_key.strip()),
+        "default_attempt_first": bool(settings.god_mode_default_attempt_first),
+        "reveal_mode": settings.god_mode_reveal_mode,
+        "separate_reports": bool(settings.god_mode_separate_reports),
+        "phases": runtime.god_mode_service.list_phases(),
+        "english_summary": "God mode configuration loaded.",
+    }
+
+
+@router.post("/v1/god/tickets/{ticket_id}/start")
+def start_god_ticket(
+    request: Request,
+    ticket_id: str,
+    payload: GodModeStartRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    try:
+        data = runtime.god_mode_service.start_ticket(
+            ticket_id=ticket_id,
+            attempt_first=payload.attempt_first,
+        )
+        return data
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/v1/god/tickets/{ticket_id}/walkthrough")
+def get_god_walkthrough(request: Request, ticket_id: str) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    try:
+        return runtime.god_mode_service.get_walkthrough(ticket_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/tickets/{ticket_id}/phase/{phase_key}/attempt")
+def submit_god_attempt(
+    request: Request,
+    ticket_id: str,
+    phase_key: str,
+    payload: GodModeAttemptRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    try:
+        return runtime.god_mode_service.submit_attempt(
+            ticket_id=ticket_id,
+            phase_key=phase_key,
+            text=payload.text,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/tickets/{ticket_id}/phase/{phase_key}/advance")
+def advance_god_phase(
+    request: Request,
+    ticket_id: str,
+    phase_key: str,
+    payload: GodModeAdvanceRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    try:
+        return runtime.god_mode_service.advance_phase(
+            ticket_id=ticket_id,
+            phase_key=phase_key,
+            note=payload.note,
+            force=payload.force,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/tickets/{ticket_id}/reveal-truth")
+def reveal_god_truth(request: Request, ticket_id: str) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    try:
+        return runtime.god_mode_service.reveal_truth(ticket_id=ticket_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/tickets/{ticket_id}/draft/public-reply")
+def god_public_reply_draft(
+    request: Request,
+    ticket_id: str,
+    payload: GodModeDraftRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    try:
+        return runtime.god_mode_service.generate_draft(
+            ticket_id=ticket_id,
+            draft_type="public_reply",
+            instruction=payload.instruction,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/tickets/{ticket_id}/draft/internal-note")
+def god_internal_note_draft(
+    request: Request,
+    ticket_id: str,
+    payload: GodModeDraftRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    try:
+        return runtime.god_mode_service.generate_draft(
+            ticket_id=ticket_id,
+            draft_type="internal_note",
+            instruction=payload.instruction,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/v1/god/tickets/{ticket_id}/draft/escalation-handoff")
+def god_escalation_handoff_draft(
+    request: Request,
+    ticket_id: str,
+    payload: GodModeDraftRequest,
+) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    try:
+        return runtime.god_mode_service.generate_draft(
+            ticket_id=ticket_id,
+            draft_type="escalation_handoff",
+            instruction=payload.instruction,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/v1/god/tickets/{ticket_id}/replay")
+def get_god_replay(request: Request, ticket_id: str) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    try:
+        return runtime.god_mode_service.build_replay(ticket_id=ticket_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get("/v1/reports/daily")
 def report_daily(request: Request) -> dict:
     runtime = request.app.state.runtime
-    report = runtime.report_service.generate("daily")
+    score_mode = ScoreMode.practice.value if runtime.settings.god_mode_separate_reports else None
+    report = runtime.report_service.generate("daily", score_mode=score_mode)
     report["english_summary"] = _report_summary(report_type="daily", report=report)
     return report
 
@@ -752,20 +921,58 @@ def report_daily(request: Request) -> dict:
 @router.get("/v1/reports/weekly")
 def report_weekly(request: Request) -> dict:
     runtime = request.app.state.runtime
-    report = runtime.report_service.generate("weekly")
+    score_mode = ScoreMode.practice.value if runtime.settings.god_mode_separate_reports else None
+    report = runtime.report_service.generate("weekly", score_mode=score_mode)
     report["english_summary"] = _report_summary(report_type="weekly", report=report)
     return report
 
 
+@router.get("/v1/god/reports/daily")
+def report_god_daily(request: Request) -> dict:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    score_mode = ScoreMode.guided_training.value if runtime.settings.god_mode_separate_reports else None
+    report = runtime.report_service.generate("daily", score_mode=score_mode)
+    report["english_summary"] = _report_summary(report_type="daily", report=report)
+    return report
+
+
+@router.get("/v1/god/reports/weekly")
+def report_god_weekly(request: Request) -> dict:
+    runtime = request.app.state.runtime
+    _require_god_access(request)
+    score_mode = ScoreMode.guided_training.value if runtime.settings.god_mode_separate_reports else None
+    report = runtime.report_service.generate("weekly", score_mode=score_mode)
+    report["english_summary"] = _report_summary(report_type="weekly", report=report)
+    return report
+
+
+def _require_god_access(request: Request) -> None:
+    runtime = request.app.state.runtime
+    settings = runtime.settings
+    if not settings.god_mode_enabled:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    required_key = settings.god_mode_access_key.strip()
+    if not required_key:
+        return
+
+    provided = request.headers.get("X-God-Key", "").strip()
+    if not provided or provided != required_key:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
 def _report_summary(report_type: str, report: dict) -> str:
     label = "Daily" if report_type == "daily" else "Weekly"
+    mode = str(report.get("score_mode") or "all")
+    mode_label = "practice" if mode == "practice" else "guided training" if mode == "guided_training" else "all"
     closed = int(report.get("tickets_closed", 0))
     avg_score = float(report.get("average_score", 0))
     avg_first_response = float(report.get("average_first_response_minutes", 0))
     avg_resolution = float(report.get("average_resolution_minutes", 0))
     sla_miss = float(report.get("sla_miss_rate", 0)) * 100.0
     summary = (
-        f"{label} performance: {closed} tickets closed. "
+        f"{label} performance ({mode_label}): {closed} tickets closed. "
         f"Average score {avg_score:.2f}, first response {avg_first_response:.2f} minutes, "
         f"resolution {avg_resolution:.2f} minutes, SLA miss rate {sla_miss:.2f}%."
     )

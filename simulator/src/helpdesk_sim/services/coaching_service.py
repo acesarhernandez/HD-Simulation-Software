@@ -222,3 +222,64 @@ class CoachingService:
         if not text:
             raise RuntimeError("Ollama returned an empty coaching note")
         return text
+
+    @staticmethod
+    def build_replay_delta(attempt_text: str, ideal_text: str) -> dict[str, object]:
+        attempt = attempt_text.strip()
+        ideal = ideal_text.strip()
+        if not attempt and not ideal:
+            return {
+                "score": 0,
+                "strengths": [],
+                "gaps": ["No attempt or ideal guidance text was available."],
+                "english_summary": "No replay comparison available for this step.",
+            }
+
+        attempt_lower = attempt.lower()
+        ideal_lower = ideal.lower()
+
+        expected_sections = [
+            "impact",
+            "check",
+            "confirm",
+            "resolution",
+            "escalat",
+            "document",
+            "sla",
+            "security",
+        ]
+        matched = [token for token in expected_sections if token in attempt_lower and token in ideal_lower]
+        missing = [token for token in expected_sections if token in ideal_lower and token not in attempt_lower]
+
+        overlap = len(set(attempt_lower.split()) & set(ideal_lower.split()))
+        baseline = max(len(set(ideal_lower.split())), 1)
+        lexical_score = int(round((overlap / baseline) * 100))
+        structure_bonus = min(len(matched) * 6, 30)
+        total_score = max(0, min(100, int(round((lexical_score * 0.7) + structure_bonus))))
+
+        strengths: list[str] = []
+        gaps: list[str] = []
+        if matched:
+            strengths.append(
+                "You covered these key areas from the ideal flow: " + ", ".join(matched[:5]) + "."
+            )
+        if not strengths and attempt:
+            strengths.append("You made an attempt, which is the right training behavior.")
+        if missing:
+            gaps.append("Missing from your attempt: " + ", ".join(missing[:6]) + ".")
+        if len(attempt.split()) < 8:
+            gaps.append("Your attempt was very short; include clearer troubleshooting and decision detail.")
+        if "please" not in attempt_lower and "thank" not in attempt_lower:
+            gaps.append("Add a professional user-facing tone marker (for example 'please' or 'thank you').")
+        if not gaps:
+            gaps.append("No major gaps were detected for this step.")
+
+        return {
+            "score": total_score,
+            "strengths": strengths,
+            "gaps": gaps,
+            "english_summary": (
+                f"Replay delta score {total_score}/100. "
+                + (strengths[0] if strengths else "Review your attempt against the ideal guidance.")
+            ),
+        }

@@ -30,6 +30,11 @@ class TicketStatus(str, Enum):
     closed = "closed"
 
 
+class ScoreMode(str, Enum):
+    practice = "practice"
+    guided_training = "guided_training"
+
+
 class HintLevel(str, Enum):
     nudge = "nudge"
     guided_step = "guided_step"
@@ -259,6 +264,44 @@ class MentorRequest(BaseModel):
     @field_validator("message", mode="before")
     @classmethod
     def normalize_message(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class GodModeStartRequest(BaseModel):
+    attempt_first: bool | None = None
+
+
+class GodModeAttemptRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def normalize_text(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class GodModeAdvanceRequest(BaseModel):
+    note: str = Field(default="", max_length=2000)
+    force: bool = False
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def normalize_note(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class GodModeDraftRequest(BaseModel):
+    instruction: str = Field(default="", max_length=2000)
+
+    @field_validator("instruction", mode="before")
+    @classmethod
+    def normalize_instruction(cls, value: Any) -> Any:
         if isinstance(value, str):
             return value.strip()
         return value

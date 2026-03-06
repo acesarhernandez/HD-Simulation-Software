@@ -46,6 +46,77 @@ class MentorService:
             ),
         }
 
+    def request_phase_guidance(
+        self,
+        ticket: TicketRecord,
+        interactions: list[InteractionRecord],
+        phase_key: str,
+        attempt_text: str = "",
+        attempt_first: bool = True,
+    ) -> dict[str, object]:
+        phase_prompt = self._phase_prompt(phase_key)
+        if attempt_text.strip():
+            analyst_message = (
+                f"{phase_prompt}\n\nMy current attempt:\n{attempt_text.strip()}\n\n"
+                "Coach me on gaps and the next best action."
+            )
+        elif attempt_first:
+            analyst_message = (
+                f"{phase_prompt}\n\nI have not submitted an attempt yet. "
+                "Tell me what to focus on first, then what good looks like."
+            )
+        else:
+            analyst_message = (
+                f"{phase_prompt}\n\nGenerate ideal guidance and wording that I can use immediately."
+            )
+
+        payload = self.request_guidance(
+            ticket=ticket,
+            interactions=interactions,
+            analyst_message=analyst_message,
+        )
+        payload["phase_key"] = phase_key
+        return payload
+
+    @staticmethod
+    def _phase_prompt(phase_key: str) -> str:
+        prompts = {
+            "intake_ownership": (
+                "Guide me on intake and ownership: how to claim, acknowledge, and set initial ticket state cleanly."
+            ),
+            "identity_security": (
+                "Guide me through identity/security validation before any access or account changes."
+            ),
+            "impact_priority": (
+                "Guide me on business impact framing and priority/SLA risk for this ticket."
+            ),
+            "user_communication": (
+                "Guide my user communication: what exact follow-up questions to ask and how to phrase them professionally."
+            ),
+            "internal_troubleshooting": (
+                "Guide my internal troubleshooting flow and the minimum checks I should perform next."
+            ),
+            "least_privilege": (
+                "Guide least-privilege handling so I avoid over-permissioning while still resolving the issue."
+            ),
+            "resolution_or_escalation": (
+                "Guide whether to resolve now or escalate, and what the handoff package should include."
+            ),
+            "documentation_rubric": (
+                "Guide my internal notes so they meet a strong documentation standard."
+            ),
+            "closure_validation": (
+                "Guide closure validation and final ticket state hygiene before closing."
+            ),
+            "replay_review": (
+                "Guide a replay review comparing my path to an ideal path and what I should improve next time."
+            ),
+        }
+        return prompts.get(
+            phase_key,
+            "Guide me on the next best help desk action for this ticket.",
+        )
+
     @staticmethod
     def _build_deterministic_reply(
         ticket: TicketRecord,

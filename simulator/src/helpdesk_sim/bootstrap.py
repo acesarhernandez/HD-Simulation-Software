@@ -18,6 +18,7 @@ from helpdesk_sim.services.engine_control_client import (
     EngineReadinessCoordinator,
 )
 from helpdesk_sim.services.generation_service import GenerationService
+from helpdesk_sim.services.god_mode_service import GodModeService
 from helpdesk_sim.services.grading_service import GradingService
 from helpdesk_sim.services.hint_service import HintService
 from helpdesk_sim.services.knowledge_matcher_service import KnowledgeMatcherService
@@ -50,6 +51,7 @@ class Runtime:
     hint_service: HintService
     mentor_service: MentorService
     coaching_service: CoachingService
+    god_mode_service: GodModeService
     knowledge_provider_service: KnowledgeProviderService
     knowledge_proposal_service: KnowledgeProposalService
     knowledge_review_service: KnowledgeReviewService
@@ -110,6 +112,17 @@ def build_runtime(settings: Settings, cwd: Path) -> Runtime:
         ollama_model=settings.ollama_model,
         engine_readiness=engine_readiness,
     )
+    god_mode_service = GodModeService(
+        repository=repository,
+        mentor_service=mentor_service,
+        coaching_service=coaching_service,
+        llm_enabled=settings.response_engine == "ollama",
+        ollama_url=settings.ollama_url,
+        ollama_model=settings.ollama_model,
+        default_attempt_first=settings.god_mode_default_attempt_first,
+        reveal_mode=settings.god_mode_reveal_mode,
+        engine_readiness=engine_readiness,
+    )
     kb_provider = _build_knowledge_provider(settings)
     knowledge_provider_service = KnowledgeProviderService(
         repository=repository,
@@ -165,6 +178,7 @@ def build_runtime(settings: Settings, cwd: Path) -> Runtime:
         hint_service=hint_service,
         mentor_service=mentor_service,
         coaching_service=coaching_service,
+        god_mode_service=god_mode_service,
         knowledge_provider_service=knowledge_provider_service,
         knowledge_proposal_service=knowledge_proposal_service,
         knowledge_review_service=knowledge_review_service,

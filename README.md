@@ -17,6 +17,7 @@ Operations toolkit for building and running a realistic help desk training envir
 | Hinting | Pre-authored hints (`nudge`, `guided_step`, `strong_hint`) | Dynamic hints tailored to your troubleshooting path |
 | Grading feedback | Deterministic scoring and plain-English summaries | Same deterministic scoring, plus optional LLM coaching notes, documentation critique, and professionalism review |
 | KB workflow | Manual copy-from-ticket only | Manual KB proposal queue with review, revision, approval, and publish flow for external KB targets |
+| Beginner training mode | Standard simulator practice only | Hidden `/god` guided-training route with phase-by-phase coaching, drafting, replay review, and separate guided reports |
 | Deployment model | Runs fully on homelab (no LLM required) | Keeps homelab backend and calls remote LLM API (for example Ollama) |
 
 ## V2 Design Rules
@@ -62,6 +63,7 @@ Key capabilities:
 - Shift Control now includes a compact day-profile quick look, while full profile comparisons stay tucked behind an inline expander.
 - Ticket detail includes built-in coaching actions, and the dashboard includes a mentor console for internal escalation guidance, communication coaching, SLA guidance, escalation decisions, and documentation tips.
 - V2 adds a manual KB proposal workflow: propose from a closed ticket, review the draft, revise it, and publish to the configured external KB provider.
+- V2 adds hidden God Mode (`/god`) for guided training, including identity/security gates, attempt-first coaching, draft generation, and replay analysis.
 - LLM runtime now includes a small PC online/offline indicator based on whether the configured LLM host is reachable.
 - In controller mode, runtime status reflects engine lifecycle states (`offline`, `waking`, `pc_online`, `ready`) from the shared homelab engine-control service.
 - Dashboard actions show visible loading states so you can see when the LLM is generating, the poller is running, or the PC wake request is being sent.
@@ -71,6 +73,16 @@ Key capabilities:
 Start here:
 
 - [`simulator/README.md`](simulator/README.md)
+
+## V2 Release Discipline
+
+For v2 milestones, the project now uses a release gate that requires synced versioning + docs updates before tagging.
+
+- Runbook: [`docs/release-runbook-v2.md`](docs/release-runbook-v2.md)
+- Template: [`.github/release-template.md`](.github/release-template.md)
+- Helper targets (from `simulator/`):
+  - `make release-check`
+  - `make release-notes`
 
 ## Existing Zammad Runbooks
 

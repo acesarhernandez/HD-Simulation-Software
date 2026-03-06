@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from helpdesk_sim.domain.models import InteractionRecord, SessionProfile, TicketRecord, TicketScore
+from helpdesk_sim.domain.models import (
+    InteractionRecord,
+    ScoreMode,
+    SessionProfile,
+    TicketRecord,
+    TicketScore,
+)
 
 
 class GradingService:
@@ -69,6 +75,9 @@ class GradingService:
             score.escalation = 5 if "escalat" not in agent_text else 2
 
         score.hint_penalty = int(hidden_truth.get("hint_penalty_total", 0))
+        god_mode = hidden_truth.get("god_mode", {}) if isinstance(hidden_truth, dict) else {}
+        guided_mode = bool(god_mode.get("enabled")) if isinstance(god_mode, dict) else False
+        score_mode = ScoreMode.guided_training.value if guided_mode else ScoreMode.practice.value
 
         return {
             "score": {
@@ -87,6 +96,10 @@ class GradingService:
                 for check in expected_checks
                 if check and check not in agent_text
             ],
+            "meta": {
+                "score_mode": score_mode,
+                "god_mode_used": guided_mode,
+            },
         }
 
     @staticmethod

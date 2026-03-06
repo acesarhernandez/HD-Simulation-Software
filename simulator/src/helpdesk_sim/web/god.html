@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>God Mode Trainer</title>
+    <script src="/ui/static/theme-sync.js"></script>
+    <link rel="stylesheet" href="/ui/static/styles.css" />
+    <link rel="stylesheet" href="/ui/static/god.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-top"></div>
+    <div class="ambient ambient-bottom"></div>
+    <main class="shell god-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Hidden Route</p>
+          <div class="hero-title-row">
+            <h1>God Mode</h1>
+            <span class="badge badge-dev">V2 Guided Training</span>
+            <span id="godVersionBadge" class="badge badge-version">v...</span>
+          </div>
+          <p class="subtitle">
+            Newbie training assist. This mode guides ticket handling step-by-step, provides draft
+            language, and compares your attempt against ideal guidance.
+          </p>
+        </div>
+        <div class="status-wrap">
+          <span id="godStatusBadge" class="badge warn">Loading...</span>
+          <a href="/ui" class="btn">Back To Dashboard</a>
+        </div>
+      </header>
+
+      <section class="split split-ops">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Access + Ticket Context</h2>
+          </div>
+          <div class="manual-grid">
+            <label class="field field-span">
+              <span>God Access Key (optional)</span>
+              <input id="godAccessKey" type="password" placeholder="Only needed when key gate is enabled" />
+            </label>
+            <button id="saveGodKeyBtn" class="btn">Save Key</button>
+            <button id="refreshGodBtn" class="btn">Refresh</button>
+            <label class="field">
+              <span>Active Session</span>
+              <select id="godSessionSelect"></select>
+            </label>
+            <label class="field">
+              <span>Ticket</span>
+              <select id="godTicketSelect"></select>
+            </label>
+            <label class="inline-check">
+              <input id="godAttemptFirst" type="checkbox" checked />
+              Attempt-first mode
+            </label>
+            <button id="godStartBtn" class="btn btn-primary">Start Walkthrough</button>
+          </div>
+          <pre id="godContextResult" class="log-box">Load a session and ticket to begin.</pre>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Guided Walkthrough</h2>
+          </div>
+          <div id="godPhaseList" class="definition-list empty">No walkthrough loaded.</div>
+          <div class="mini-help">
+            Current phase: <span id="godCurrentPhase">-</span>
+          </div>
+          <pre id="godGuidanceResult" class="log-box">Guidance will appear here.</pre>
+        </article>
+      </section>
+
+      <section class="split split-ops">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Attempt + Advance</h2>
+          </div>
+          <div class="manual-grid">
+            <label class="field field-span">
+              <span>Your Attempt</span>
+              <textarea
+                id="godAttemptText"
+                rows="8"
+                placeholder="Write how you would handle the current phase."
+              ></textarea>
+            </label>
+            <button id="godSubmitAttemptBtn" class="btn btn-primary">Submit Attempt</button>
+            <button id="godAdvanceBtn" class="btn">Advance Phase</button>
+            <button id="godRevealBtn" class="btn btn-warn">Reveal Truth Now</button>
+          </div>
+          <pre id="godAttemptResult" class="log-box">Attempt feedback will appear here.</pre>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Draft Composer</h2>
+          </div>
+          <div class="manual-grid">
+            <label class="field field-span">
+              <span>Optional instruction</span>
+              <input id="godDraftInstruction" type="text" placeholder="Example: keep this concise and user-friendly" />
+            </label>
+            <button id="godDraftPublicBtn" class="btn">Draft Public Reply</button>
+            <button id="godDraftInternalBtn" class="btn">Draft Internal Note</button>
+            <button id="godDraftEscalationBtn" class="btn">Draft Escalation Handoff</button>
+          </div>
+          <pre id="godDraftResult" class="log-box">Draft output will appear here.</pre>
+        </article>
+      </section>
+
+      <section class="split split-ops">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Replay Review</h2>
+          </div>
+          <div class="panel-actions">
+            <button id="godReplayBtn" class="btn">Generate Replay</button>
+          </div>
+          <pre id="godReplayResult" class="log-box">Replay results will appear here.</pre>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>God Reports</h2>
+          </div>
+          <div class="panel-actions">
+            <button id="godDailyBtn" class="btn">God Daily</button>
+            <button id="godWeeklyBtn" class="btn">God Weekly</button>
+          </div>
+          <pre id="godReportResult" class="log-box">Guided training reports will appear here.</pre>
+        </article>
+      </section>
+    </main>
+    <script src="/ui/static/god.js"></script>
+  </body>
+</html>

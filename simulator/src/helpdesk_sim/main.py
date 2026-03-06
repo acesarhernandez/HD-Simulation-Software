@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="HelpDesk Simulator API",
-    version="0.2.2",
+    version="2.0.3",
     lifespan=lifespan,
 )
 app.include_router(router)
@@ -55,6 +55,30 @@ def ui_index() -> FileResponse:
 @app.get("/ui/guide", include_in_schema=False)
 def ui_guide() -> FileResponse:
     return FileResponse(WEB_DIR / "guide.html")
+
+
+def _god_access_allowed(request: Request) -> bool:
+    runtime = getattr(request.app.state, "runtime", None)
+    settings = runtime.settings if runtime is not None else get_settings()
+    if not settings.god_mode_enabled:
+        return False
+
+    access_key = settings.god_mode_access_key.strip()
+    if not access_key:
+        return True
+
+    provided = (
+        request.headers.get("X-God-Key", "").strip()
+        or request.query_params.get("k", "").strip()
+    )
+    return bool(provided and provided == access_key)
+
+
+@app.get("/god", include_in_schema=False)
+def god_ui(request: Request) -> FileResponse:
+    if not _god_access_allowed(request):
+        raise HTTPException(status_code=404, detail="Not Found")
+    return FileResponse(WEB_DIR / "god.html")
 
 
 if __name__ == "__main__":  # pragma: no cover

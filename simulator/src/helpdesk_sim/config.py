@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     llm_host_wol_broadcast_ip: str = "255.255.255.255"
     llm_host_wol_port: int = 9
 
+    god_mode_enabled: bool = False
+    god_mode_access_key: str = ""
+    god_mode_default_attempt_first: bool = True
+    god_mode_reveal_mode: str = "guided"
+    god_mode_separate_reports: bool = True
+
     kb_enabled: bool = False
     kb_provider: str = "zammad"
     kb_review_required: bool = True
