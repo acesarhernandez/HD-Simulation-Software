@@ -153,6 +153,7 @@ class ScenarioTemplate(BaseModel):
     resolution_steps: list[str] = Field(default_factory=list)
     acceptable_resolution_keywords: list[str] = Field(default_factory=list)
     clue_map: dict[str, str] = Field(default_factory=dict)
+    diagnostics: dict[str, Any] = Field(default_factory=dict)
     hint_bank: dict[HintLevel, str] = Field(default_factory=dict)
     default_follow_up: str = "I can share more details if you can tell me exactly what you need."
 

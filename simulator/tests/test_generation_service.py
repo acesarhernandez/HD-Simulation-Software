@@ -65,6 +65,8 @@ def test_generation_service_keeps_template_opening_when_llm_disabled() -> None:
     assert ticket.body == "Our new coordinator can log in but cannot open the HR shared mailbox in Outlook."
     assert ticket.hidden_truth["opening_body_source"] == "template"
     assert ticket.hidden_truth["root_cause"] == "Missing shared mailbox permission assignment in group membership."
+    assert ticket.hidden_truth["investigation_category"] == "password_access"
+    assert "diagnostics" in ticket.hidden_truth
 
 
 def test_generation_service_rewrites_opening_when_llm_available(monkeypatch) -> None:

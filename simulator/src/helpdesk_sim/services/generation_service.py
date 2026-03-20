@@ -8,6 +8,10 @@ import httpx
 from helpdesk_sim.domain.models import GeneratedTicket, SessionProfile, TicketTier
 from helpdesk_sim.services.catalog_service import CatalogService
 from helpdesk_sim.services.engine_control_client import EngineReadinessCoordinator
+from helpdesk_sim.services.investigation_service import (
+    build_diagnostics_snapshot,
+    classify_console_category,
+)
 
 
 @dataclass(slots=True)
@@ -80,6 +84,15 @@ class GenerationService:
             "template_body": scenario.customer_problem,
             "opening_body_source": "llm_rewrite" if body != scenario.customer_problem else "template",
         }
+        hidden_truth["investigation_category"] = classify_console_category(scenario.ticket_type)
+        hidden_truth["diagnostics"] = build_diagnostics_snapshot(
+            ticket_type=scenario.ticket_type,
+            root_cause=scenario.root_cause,
+            clue_map=scenario.clue_map,
+            department=persona.role,
+            tier=getattr(getattr(scenario, "tier", None), "value", None),
+            overrides=getattr(scenario, "diagnostics", None),
+        )
 
         return GeneratedTicket(
             scenario_id=scenario.id,

@@ -21,6 +21,7 @@ from helpdesk_sim.services.generation_service import GenerationService
 from helpdesk_sim.services.god_mode_service import GodModeService
 from helpdesk_sim.services.grading_service import GradingService
 from helpdesk_sim.services.hint_service import HintService
+from helpdesk_sim.services.investigation_service import InvestigationService
 from helpdesk_sim.services.knowledge_matcher_service import KnowledgeMatcherService
 from helpdesk_sim.services.knowledge_proposal_service import KnowledgeProposalService
 from helpdesk_sim.services.knowledge_provider_service import KnowledgeProviderService
@@ -49,6 +50,7 @@ class Runtime:
     scheduler_service: SchedulerService
     poller_service: PollerService
     hint_service: HintService
+    investigation_service: InvestigationService
     mentor_service: MentorService
     coaching_service: CoachingService
     god_mode_service: GodModeService
@@ -100,6 +102,7 @@ def build_runtime(settings: Settings, cwd: Path) -> Runtime:
         grading_service=grading_service,
     )
     hint_service = HintService(repository=repository)
+    investigation_service = InvestigationService()
     mentor_service = MentorService(
         llm_enabled=settings.response_engine == "ollama",
         ollama_url=settings.ollama_url,
@@ -176,6 +179,7 @@ def build_runtime(settings: Settings, cwd: Path) -> Runtime:
         scheduler_service=scheduler_service,
         poller_service=poller_service,
         hint_service=hint_service,
+        investigation_service=investigation_service,
         mentor_service=mentor_service,
         coaching_service=coaching_service,
         god_mode_service=god_mode_service,

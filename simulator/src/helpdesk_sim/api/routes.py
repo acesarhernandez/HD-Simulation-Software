@@ -345,6 +345,19 @@ def get_ticket(request: Request, ticket_id: str) -> dict:
     }
 
 
+@router.get("/v1/tickets/{ticket_id}/investigation-checks")
+def get_ticket_investigation_checks(request: Request, ticket_id: str) -> dict[str, object]:
+    runtime = request.app.state.runtime
+    ticket = runtime.repository.get_ticket(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail="ticket not found")
+    payload = runtime.investigation_service.build_ticket_report(ticket)
+    payload["english_summary"] = (
+        f"Deterministic investigation checks loaded for ticket {ticket_id[:8]}."
+    )
+    return payload
+
+
 @router.post("/v1/tickets/{ticket_id}/knowledge-draft")
 def generate_knowledge_draft(request: Request, ticket_id: str) -> dict[str, object]:
     runtime = request.app.state.runtime
