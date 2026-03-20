@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="HelpDesk Simulator API",
-    version="2.0.3",
+    version="2.1.0",
     lifespan=lifespan,
 )
 app.include_router(router)

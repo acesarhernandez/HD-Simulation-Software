@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "helpdesk-simulator"
-version = "2.0.3"
+version = "2.1.0"
 description = "HD Simulation Software backend for Zammad training labs"
 readme = "README.md"
 requires-python = ">=3.11"
