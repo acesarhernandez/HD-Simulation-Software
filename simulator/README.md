@@ -456,6 +456,49 @@ Each scenario defines:
 
 This structure lets you keep deterministic scoring while still generating varied ticket streams.
 
+### Bulk Scenario Pack Workflow
+
+If you want ChatGPT (or any generator) to produce a batch of new scenarios, use a scenario pack:
+
+1. Generate a starter template:
+
+```bash
+cd simulator
+PYTHONPATH=src python3 scripts/scenario_pack_tools.py template
+```
+
+This writes `simulator/scenario-pack-template.yaml`.
+
+2. Paste your generated scenarios into the pack file (`scenarios:` list).
+
+3. Validate before import:
+
+```bash
+cd simulator
+PYTHONPATH=src python3 scripts/scenario_pack_tools.py validate --pack scenario-pack-template.yaml
+```
+
+4. Dry-run the merge:
+
+```bash
+cd simulator
+PYTHONPATH=src python3 scripts/scenario_pack_tools.py import --pack scenario-pack-template.yaml --dry-run
+```
+
+5. Import for real (creates a backup of `scenarios.yaml` by default):
+
+```bash
+cd simulator
+PYTHONPATH=src python3 scripts/scenario_pack_tools.py import --pack scenario-pack-template.yaml
+```
+
+If pack IDs already exist and you intentionally want to replace them:
+
+```bash
+cd simulator
+PYTHONPATH=src python3 scripts/scenario_pack_tools.py import --pack scenario-pack-template.yaml --allow-overwrite
+```
+
 ## Extending to v2 (Ollama on Windows)
 
 You can keep this backend on homelab and only point `SIM_OLLAMA_URL` to your Windows Ollama endpoint over Tailscale.

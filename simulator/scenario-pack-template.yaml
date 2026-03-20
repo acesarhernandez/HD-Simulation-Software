@@ -1,0 +1,67 @@
+scenario_pack:
+  name: "example-pack-name"
+  description: "Paste generated scenarios here before validation/import."
+  created_by: "chatgpt-or-human-author"
+  created_at: "2026-03-20"
+
+scenarios:
+  - id: "t1_example_unique_id"
+    title: "Example Ticket Title"
+    ticket_type: "onboarding"
+    tier: "tier1"
+    priority: "normal"
+    tags: ["onboarding", "licensing"]
+    persona_roles: ["HR"]
+    knowledge_article_ids: ["kb_onboarding_license_assignment"]
+    customer_problem: "New hire can sign in but Teams is unavailable."
+    root_cause: "Required license bundle was skipped in onboarding workflow."
+    expected_agent_checks:
+      - "check account status"
+      - "check assigned license bundles"
+      - "check group membership"
+    resolution_steps:
+      - "assign missing bundle"
+      - "confirm required groups"
+      - "have user sign out and sign in"
+    acceptable_resolution_keywords:
+      - "assign license"
+      - "group membership"
+      - "sign out and sign in"
+    clue_map:
+      scope: "Only Teams fails; user can sign in."
+      timing: "Account was created this morning."
+    diagnostics:
+      account:
+        is_enabled: true
+        is_locked: false
+        lockout_reason:
+        last_password_change_days: 1
+        password_max_age_days: 90
+      password:
+        relevant: true
+        is_expired: false
+        must_change_at_next_logon: true
+        last_password_change_days: 1
+        password_max_age_days: 90
+        mfa_enrolled: true
+      license:
+        relevant: true
+        required_bundles: ["M365_E3"]
+        assigned_bundles: ["Exchange_Plan1"]
+        missing_bundles: ["M365_E3"]
+      groups:
+        relevant: true
+        required_groups: ["new_hire_default_access"]
+        current_groups: ["new_hire_default_access"]
+        missing_groups: []
+      mailbox:
+        relevant: false
+        mailbox_identifier: ""
+        access_via_group:
+        has_access: true
+        auto_mapping_enabled: true
+    hint_bank:
+      nudge: "Account looks healthy; focus on entitlements."
+      guided_step: "Compare required bundle vs assigned bundle."
+      strong_hint: "Assign missing bundle and refresh sign-in."
+    default_follow_up: "I can test right away once changes are done."
