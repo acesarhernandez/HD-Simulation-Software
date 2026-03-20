@@ -60,6 +60,9 @@ const refs = {
   ticketTableBody: document.getElementById("ticketTableBody"),
   ticketInfoResult: document.getElementById("ticketInfoResult"),
   ticketCoachingResult: document.getElementById("ticketCoachingResult"),
+  ticketInvestigationMeta: document.getElementById("ticketInvestigationMeta"),
+  ticketInvestigationRefreshBtn: document.getElementById("ticketInvestigationRefreshBtn"),
+  ticketInvestigationResult: document.getElementById("ticketInvestigationResult"),
   mentorTicketId: document.getElementById("mentorTicketId"),
   mentorPrompt: document.getElementById("mentorPrompt"),
   mentorBtn: document.getElementById("mentorBtn"),
@@ -355,6 +358,119 @@ function formatKebabLabel(value) {
     .join(" ");
 }
 
+function formatInvestigationStatus(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "pass") return "PASS";
+  if (normalized === "fail") return "FAIL";
+  if (normalized === "warning") return "WARN";
+  if (normalized === "not_applicable") return "N/A";
+  return normalized.toUpperCase() || "UNKNOWN";
+}
+
+function formatBoolYesNo(value) {
+  return value ? "Yes" : "No";
+}
+
+function formatListValue(value) {
+  if (!Array.isArray(value)) return String(value ?? "None");
+  if (!value.length) return "None";
+  return value.join(", ");
+}
+
+function formatDiagnosticValue(key, value) {
+  if (key === "is_enabled") return value ? "Active" : "Disabled";
+  if (key === "is_locked") return formatBoolYesNo(Boolean(value));
+  if (key === "is_expired") return formatBoolYesNo(Boolean(value));
+  if (key === "must_change_at_next_logon") return formatBoolYesNo(Boolean(value));
+  if (key === "mfa_enrolled") return formatBoolYesNo(Boolean(value));
+  if (key === "has_access") return value ? "Available" : "Missing";
+  if (key === "auto_mapping_enabled") return formatBoolYesNo(Boolean(value));
+  if (key === "last_password_change_days") return `${value} days ago`;
+  if (key === "password_max_age_days") return `${value} days`;
+  if (key === "required_bundles" || key === "assigned_bundles" || key === "missing_bundles") {
+    return formatListValue(value);
+  }
+  if (key === "required_groups" || key === "current_groups" || key === "missing_groups") {
+    return formatListValue(value);
+  }
+  if (value === null || value === undefined || value === "") return "None";
+  return String(value);
+}
+
+function formatDiagnosticLabel(key) {
+  const labels = {
+    is_enabled: "Account Status",
+    is_locked: "Locked Out",
+    lockout_reason: "Lockout Reason",
+    last_password_change_days: "Last Password Change",
+    password_max_age_days: "Password Expiry Policy",
+    is_expired: "Password Expired",
+    must_change_at_next_logon: "Must Change at Next Sign-In",
+    mfa_enrolled: "MFA Enrolled",
+    required_bundles: "Required Licenses",
+    assigned_bundles: "Assigned Licenses",
+    missing_bundles: "Missing Licenses",
+    required_groups: "Required Groups",
+    current_groups: "Current Groups",
+    missing_groups: "Missing Groups",
+    mailbox_identifier: "Mailbox",
+    access_via_group: "Access Group",
+    has_access: "Mailbox Access",
+    auto_mapping_enabled: "Auto-Mapping",
+  };
+  return labels[key] || formatKebabLabel(key);
+}
+
+function formatDiagnosticFields(fields) {
+  if (!fields || typeof fields !== "object" || !Object.keys(fields).length) {
+    return ["Not applicable for this ticket."];
+  }
+  return Object.entries(fields).map(
+    ([key, value]) => `${formatDiagnosticLabel(key)}: ${formatDiagnosticValue(key, value)}`
+  );
+}
+
+function formatInvestigationSummary(data) {
+  const order = Array.isArray(data?.prioritized_checks) ? data.prioritized_checks : [];
+  const results = Array.isArray(data?.results) ? data.results : [];
+  const resultByCheck = new Map(results.map((item) => [item.check_id, item]));
+  const lines = [
+    `Category: ${formatKebabLabel(data?.console_category || "general")}`,
+    "Priority Order:",
+  ];
+
+  order.forEach((item) => {
+    lines.push(`  ${item.priority_rank}. ${item.label}`);
+  });
+
+  lines.push("", "Check Results:");
+  order.forEach((item) => {
+    const result = resultByCheck.get(item.check_id) || {};
+    const fields = result.fields && typeof result.fields === "object" ? result.fields : {};
+    const status = formatInvestigationStatus(result.status);
+    lines.push(`${item.label}: ${status}`);
+    formatDiagnosticFields(fields).forEach((line) => {
+      lines.push(`  ${line}`);
+    });
+    if (result.result_code) {
+      lines.push(`  Check Code: ${result.result_code}`);
+    }
+    lines.push("");
+  });
+
+  return lines.join("\n").trimEnd();
+}
+
+function resetTicketInvestigationPanel() {
+  if (refs.ticketInvestigationMeta) {
+    refs.ticketInvestigationMeta.textContent = "No ticket selected";
+  }
+  if (refs.ticketInvestigationResult) {
+    refs.ticketInvestigationResult.textContent =
+      "Select a ticket to load deterministic investigation checks.";
+  }
+}
+
 function isEngineWakePending() {
   return Date.now() < Number(state.engineWakePendingUntil || 0);
 }
@@ -409,6 +525,7 @@ function renderTickets(tickets) {
     refs.ticketInfoResult.textContent = "Select a ticket to view details.";
     refs.ticketCoachingResult.textContent =
       "Select a closed ticket and use Coach to review how you handled it.";
+    resetTicketInvestigationPanel();
     refs.mentorResult.textContent =
       "Select a ticket and ask about troubleshooting, communication, SLA, escalation, documentation, or best practices.";
     return;
@@ -928,9 +1045,10 @@ async function loadTicketInfo(ticketId) {
   state.selectedTicketId = ticketId;
   renderTickets(state.currentSessionTickets);
 
-  const [ticketData, knowledgeData] = await Promise.all([
+  const [ticketData, knowledgeData, investigationData] = await Promise.all([
     api(`/v1/tickets/${ticketId}`, { method: "GET", headers: {} }),
     api(`/v1/tickets/${ticketId}/knowledge-articles`, { method: "GET", headers: {} }),
+    api(`/v1/tickets/${ticketId}/investigation-checks`, { method: "GET", headers: {} }),
   ]);
 
   const ticket = ticketData.ticket;
@@ -987,6 +1105,18 @@ async function loadTicketInfo(ticketId) {
     ticket.status === "closed"
       ? "This ticket is closed. Use Coach to generate a post-ticket review."
       : "Close this ticket first, then use Coach to review how you handled it.";
+
+  if (refs.ticketInvestigationMeta) {
+    refs.ticketInvestigationMeta.textContent = [
+      `Category: ${formatKebabLabel(investigationData.console_category || "general")}`,
+      `Checks: ${(investigationData.results || []).length}`,
+    ].join(" | ");
+  }
+  writeHumanAndJson(
+    refs.ticketInvestigationResult,
+    formatInvestigationSummary(investigationData),
+    investigationData
+  );
 }
 
 async function clockIn() {
@@ -1344,6 +1474,7 @@ async function deleteSingleTicket(ticketId, triggerButton = null) {
       refs.ticketInfoResult.textContent = "Select a ticket to view details.";
       refs.ticketCoachingResult.textContent =
         "Select a closed ticket and use Coach to review how you handled it.";
+      resetTicketInvestigationPanel();
       refs.mentorResult.textContent =
         "Select a ticket and ask about troubleshooting, communication, SLA, escalation, documentation, or best practices.";
     }
@@ -1413,6 +1544,7 @@ async function deleteAllTicketsInSelectedSession() {
     refs.ticketInfoResult.textContent = "Select a ticket to view details.";
     refs.ticketCoachingResult.textContent =
       "Select a closed ticket and use Coach to review how you handled it.";
+    resetTicketInvestigationPanel();
     refs.mentorResult.textContent =
       "Select a ticket and ask about troubleshooting, communication, SLA, escalation, documentation, or best practices.";
     await loadSessionDetail(sessionId);
@@ -1620,6 +1752,37 @@ async function requestHint() {
   }
 }
 
+async function refreshTicketInvestigation() {
+  const ticketId = state.selectedTicketId;
+  if (!ticketId) {
+    resetTicketInvestigationPanel();
+    return;
+  }
+
+  setBusy(refs.ticketInvestigationRefreshBtn, true);
+  try {
+    const data = await api(`/v1/tickets/${ticketId}/investigation-checks`, {
+      method: "GET",
+      headers: {},
+    });
+    if (refs.ticketInvestigationMeta) {
+      refs.ticketInvestigationMeta.textContent = [
+        `Category: ${formatKebabLabel(data.console_category || "general")}`,
+        `Checks: ${(data.results || []).length}`,
+      ].join(" | ");
+    }
+    writeHumanAndJson(
+      refs.ticketInvestigationResult,
+      formatInvestigationSummary(data),
+      data
+    );
+  } catch (error) {
+    writeLog(refs.ticketInvestigationResult, `Investigation refresh failed: ${error.message}`);
+  } finally {
+    setBusy(refs.ticketInvestigationRefreshBtn, false);
+  }
+}
+
 async function loadReport(kind) {
   const button = kind === "weekly" ? refs.weeklyReportBtn : refs.dailyReportBtn;
   setBusy(button, true);
@@ -1736,6 +1899,7 @@ refs.refreshBtn.addEventListener("click", refreshAll);
 refs.manualAutofillBtn.addEventListener("click", autoFillManualFilters);
 refs.manualGenerateBtn.addEventListener("click", generateManualTickets);
 refs.hintBtn.addEventListener("click", requestHint);
+refs.ticketInvestigationRefreshBtn.addEventListener("click", refreshTicketInvestigation);
 refs.dailyReportBtn.addEventListener("click", () => loadReport("daily"));
 refs.weeklyReportBtn.addEventListener("click", () => loadReport("weekly"));
 refs.llmStatusRefreshBtn.addEventListener("click", () => loadLlmRuntimeStatus());

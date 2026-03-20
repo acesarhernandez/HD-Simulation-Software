@@ -226,6 +226,23 @@
           </div>
           <pre id="ticketInfoResult" class="log-box">Select a ticket to view details.</pre>
           <pre id="ticketCoachingResult" class="log-box">Select a closed ticket and use Coach to review how you handled it.</pre>
+          <div class="panel-head" style="margin-top: 12px">
+            <h3>Investigation Checks</h3>
+            <div class="panel-actions">
+              <span id="ticketInvestigationMeta" class="meta">No ticket selected</span>
+              <button
+                id="ticketInvestigationRefreshBtn"
+                class="btn"
+                data-busy-label="Refreshing..."
+              >
+                Refresh Checks
+              </button>
+            </div>
+          </div>
+          <p class="mini-help">
+            Deterministic admin checks for the selected ticket. Results come from ticket hidden evidence, not LLM generation.
+          </p>
+          <pre id="ticketInvestigationResult" class="log-box">Select a ticket to load deterministic investigation checks.</pre>
       </section>
 
       <section class="split reveal" style="--delay: 0.24s">
