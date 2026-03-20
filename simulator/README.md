@@ -9,11 +9,12 @@ This service generates realistic ticket traffic, listens for analyst responses, 
 - **V1 (current / stable):** [https://github.com/acesarhernandez/HD-Simulation-Software](https://github.com/acesarhernandez/HD-Simulation-Software) (`main`)
   - Primary target: homelab deployment
   - Default response engine: `rule_based`
-- **V2 (in development):** [https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev](https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev)
+- **V2 (active release branch):** [https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev](https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev)
   - Primary target: same backend with optional remote LLM endpoint
   - Response engine mode: optional `ollama` with deterministic fallback
   - If the LLM is unavailable, the simulator can fall back to rule-based replies
   - Version line follows milestone tags (`v2.x.y`)
+  - Current simulator version: `2.1.0`
 
 ## What LLM Changes In V2
 
@@ -154,6 +155,7 @@ Open API docs:
 - `POST /v1/runtime/wake-llm-host` (Manual wake trigger; proxies to engine-controller when configured, otherwise uses legacy local WoL fallback)
 - `POST /v1/tickets/<ticket_id>/coach` (Post-close coaching note grounded in deterministic grading data)
 - `POST /v1/tickets/<ticket_id>/mentor` (Internal mentor / escalation guidance for the selected ticket)
+- `GET /v1/tickets/<ticket_id>/investigation-checks` (Deterministic investigation checks for account/password/license/group/mailbox evidence)
 - `POST /v1/tickets/<ticket_id>/kb/propose` (Manual KB proposal from a closed ticket)
 - `GET /v1/kb/review-items` (Review queue)
 - `POST /v1/kb/review-items/<review_item_id>/revise` (Revise a KB draft)
@@ -176,6 +178,7 @@ Dashboard highlights:
 - Active sessions are surfaced beside manual generation so live shift selection stays close to ticket creation.
 - Manual ticket generation controls by session, tier, ticket type, department, persona, or scenario.
 - Ticket detail panel showing operational metadata, recent interactions, and linked knowledge articles.
+- Ticket detail includes an `Investigation Checks` panel with prioritized deterministic checks and user-friendly result formatting (raw JSON remains available).
 - Ticket detail actions for close/delete (single and bulk) plus manual KB proposal generation for closed tickets.
 - Ticket detail includes a `Coach` action that sends a closed ticket to the coaching endpoint and shows the result in the same panel.
 - Ticket delete actions now attempt linked Zammad ticket deletion first, then remove simulator records.
