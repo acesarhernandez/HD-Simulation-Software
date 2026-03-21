@@ -5,14 +5,14 @@ Operations toolkit for building and running a realistic help desk training envir
 ## Version Status
 
 - **V1 (current / stable):** [HD Simulation Software v1](https://github.com/acesarhernandez/HD-Simulation-Software) on `main`, designed for homelab deployment with deterministic, rule-based simulation.
-- **V2 (in development):** [HD Simulation Software v2 dev branch](https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev), the optional-LLM track that keeps the same backend architecture while adding LLM enhancements.
+- **V2 (active release branch):** [HD Simulation Software v2 branch](https://github.com/acesarhernandez/HD-Simulation-Software/tree/v2-llm-dev), the optional-LLM track with milestone tag `v2.1`.
 
 ## V1 vs V2 (LLM)
 
-| Area | V1 (current) | V2 (in development) |
+| Area | V1 (current) | V2 (active release branch) |
 | --- | --- | --- |
 | Ticket generation | YAML-driven scenarios, profiles, and weighted scheduling | Same base engine, plus optional LLM variation for more natural ticket phrasing |
-| End-user replies | Rule-based follow-up responses from scenario clue maps | Context-aware conversational replies based on ticket history and persona |
+| End-user replies | Rule-based follow-up responses from scenario clue maps | Context-aware replies with deterministic clue-reveal gating so critical clues are primarily revealed by technician inquiry |
 | LLM readiness/wake | Not applicable | Engine-controller-first readiness and wake integration (manual wake + automatic ensure-ready preflight) |
 | Hinting | Pre-authored hints (`nudge`, `guided_step`, `strong_hint`) | Dynamic hints tailored to your troubleshooting path |
 | Grading feedback | Deterministic scoring and plain-English summaries | Same deterministic scoring, plus optional LLM coaching notes, documentation critique, and professionalism review |
@@ -64,7 +64,7 @@ Key capabilities:
 - Ticket detail includes built-in coaching actions, and the dashboard includes a mentor console for internal escalation guidance, communication coaching, SLA guidance, escalation decisions, and documentation tips.
 - V2 adds a manual KB proposal workflow: propose from a closed ticket, review the draft, revise it, and publish to the configured external KB provider.
 - V2 adds hidden God Mode (`/god`) for guided training, including identity/security gates, attempt-first coaching, draft generation, and replay analysis.
-- LLM runtime now includes a small PC online/offline indicator based on whether the configured LLM host is reachable.
+- LLM runtime now includes a dedicated engine status badge in the dashboard and a matching status indicator in the top header.
 - In controller mode, runtime status reflects engine lifecycle states (`offline`, `waking`, `pc_online`, `ready`) from the shared homelab engine-control service.
 - Dashboard actions show visible loading states so you can see when the LLM is generating, the poller is running, or the PC wake request is being sent.
 - Plain-language guide at `http://localhost:8079/ui/guide`.
