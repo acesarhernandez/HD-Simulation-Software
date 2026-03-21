@@ -100,11 +100,11 @@ function updateRequestStatus() {
     refs.requestStatusBadge.textContent =
       state.pendingRequests === 1 ? "Requests Working..." : `Requests Working (${state.pendingRequests})`;
     refs.requestStatusBadge.className = "badge warn";
+    refs.requestStatusBadge.hidden = false;
     return;
   }
 
-  refs.requestStatusBadge.textContent = "Requests Idle";
-  refs.requestStatusBadge.className = "badge badge-muted";
+  refs.requestStatusBadge.hidden = true;
 }
 
 function renderHeaderEngineBadge(engineText, badgeKind) {
@@ -114,14 +114,17 @@ function renderHeaderEngineBadge(engineText, badgeKind) {
 }
 
 async function api(path, options = {}) {
-  state.pendingRequests += 1;
-  updateRequestStatus();
+  const { showRequestBadge = true, ...fetchOptions } = options;
+  if (showRequestBadge) {
+    state.pendingRequests += 1;
+    updateRequestStatus();
+  }
 
   const init = {
-    ...options,
+    ...fetchOptions,
     headers: {
       "Content-Type": "application/json",
-      ...(options.headers || {}),
+      ...(fetchOptions.headers || {}),
     },
   };
 
@@ -147,8 +150,10 @@ async function api(path, options = {}) {
 
     return data;
   } finally {
-    state.pendingRequests = Math.max(0, state.pendingRequests - 1);
-    updateRequestStatus();
+    if (showRequestBadge) {
+      state.pendingRequests = Math.max(0, state.pendingRequests - 1);
+      updateRequestStatus();
+    }
   }
 }
 
@@ -712,9 +717,9 @@ function renderScenarioOptions() {
   }
 }
 
-async function loadHealth() {
+async function loadHealth({ showRequestBadge = true } = {}) {
   try {
-    const data = await api("/health", { method: "GET", headers: {} });
+    const data = await api("/health", { method: "GET", headers: {}, showRequestBadge });
     refs.healthBadge.textContent = data.status === "ok" ? "API Online" : "API Unknown";
     refs.healthBadge.className = `badge ${data.status === "ok" ? "ok" : "fail"}`;
     if (refs.versionBadge && data?.version) {
@@ -732,9 +737,9 @@ async function loadHealth() {
   }
 }
 
-async function loadProfiles() {
+async function loadProfiles({ showRequestBadge = true } = {}) {
   const currentValue = refs.profileSelect.value;
-  const data = await api("/v1/profiles", { method: "GET", headers: {} });
+  const data = await api("/v1/profiles", { method: "GET", headers: {}, showRequestBadge });
   refs.profileSelect.innerHTML = data.profiles
     .map((name) => `<option value="${name}">${name}</option>`)
     .join("");
@@ -746,8 +751,8 @@ async function loadProfiles() {
   renderSelectedProfileSummary();
 }
 
-async function loadCatalog() {
-  const data = await api("/v1/catalog", { method: "GET", headers: {} });
+async function loadCatalog({ showRequestBadge = true } = {}) {
+  const data = await api("/v1/catalog", { method: "GET", headers: {}, showRequestBadge });
   state.catalog = {
     ticket_types: data.ticket_types || [],
     departments: data.departments || [],
@@ -757,8 +762,8 @@ async function loadCatalog() {
   renderCatalogOptions();
 }
 
-async function loadSessions() {
-  const data = await api("/v1/sessions", { method: "GET", headers: {} });
+async function loadSessions({ showRequestBadge = true } = {}) {
+  const data = await api("/v1/sessions", { method: "GET", headers: {}, showRequestBadge });
   state.sessions = data.sessions || [];
   renderSessions();
   populateManualSessionSelect();
@@ -897,13 +902,13 @@ async function waitForEngineStatusAfterWake() {
   return lastData;
 }
 
-async function loadLlmRuntimeStatus({ quiet = false } = {}) {
+async function loadLlmRuntimeStatus({ quiet = false, showRequestBadge = true } = {}) {
   if (!quiet) {
     setBusy(refs.llmStatusRefreshBtn, true);
     renderHeaderEngineBadge("Engine Checking...", "badge-muted");
   }
   try {
-    const data = await api("/v1/runtime/response-engine", { method: "GET", headers: {} });
+    const data = await api("/v1/runtime/response-engine", { method: "GET", headers: {}, showRequestBadge });
     renderLlmRuntimeStatus(data);
   } catch (error) {
     refs.llmStatusBadge.textContent = "LLM Error";
@@ -937,13 +942,13 @@ function renderKbProviderStatus(data) {
   refs.kbProviderMeta.textContent = `${formatKebabLabel(data.provider)} ready | cached: ${data.cached_article_count ?? 0}`;
 }
 
-async function loadKbProviderStatus({ quiet = false } = {}) {
+async function loadKbProviderStatus({ quiet = false, showRequestBadge = true } = {}) {
   if (!refs.kbProviderMeta) return;
   if (!quiet) {
     setBusy(refs.kbStatusRefreshBtn, true);
   }
   try {
-    const data = await api("/v1/kb/providers/status", { method: "GET", headers: {} });
+    const data = await api("/v1/kb/providers/status", { method: "GET", headers: {}, showRequestBadge });
     renderKbProviderStatus(data);
   } catch (error) {
     refs.kbProviderMeta.textContent = `KB error: ${error.message}`;
@@ -954,9 +959,9 @@ async function loadKbProviderStatus({ quiet = false } = {}) {
   }
 }
 
-async function loadKbReviewQueue({ preserveSelection = true } = {}) {
+async function loadKbReviewQueue({ preserveSelection = true, showRequestBadge = true } = {}) {
   if (!refs.kbQueueList) return;
-  const data = await api("/v1/kb/review-items", { method: "GET", headers: {} });
+  const data = await api("/v1/kb/review-items", { method: "GET", headers: {}, showRequestBadge });
   state.kbReviewItems = data.items || [];
   renderKbReviewQueue();
 
@@ -1886,17 +1891,17 @@ function toggleThemePanel() {
   refs.themeLauncher.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
 }
 
-async function refreshAll() {
+async function refreshAll({ showRequestBadge = true } = {}) {
   setBusy(refs.refreshBtn, true);
   try {
     await Promise.all([
-      loadHealth(),
-      loadProfiles(),
-      loadCatalog(),
-      loadSessions(),
-      loadLlmRuntimeStatus(),
-      loadKbProviderStatus({ quiet: true }),
-      loadKbReviewQueue(),
+      loadHealth({ showRequestBadge }),
+      loadProfiles({ showRequestBadge }),
+      loadCatalog({ showRequestBadge }),
+      loadSessions({ showRequestBadge }),
+      loadLlmRuntimeStatus({ showRequestBadge }),
+      loadKbProviderStatus({ quiet: true, showRequestBadge }),
+      loadKbReviewQueue({ showRequestBadge }),
     ]);
     if (state.selectedSessionId) {
       await loadSessionDetail(state.selectedSessionId);
@@ -1913,7 +1918,7 @@ refs.closeAllSessionTicketsBtn.addEventListener("click", closeAllTicketsInSelect
 refs.deleteAllSessionTicketsBtn.addEventListener("click", deleteAllTicketsInSelectedSession);
 refs.schedulerBtn.addEventListener("click", runScheduler);
 refs.pollerBtn.addEventListener("click", runPoller);
-refs.refreshBtn.addEventListener("click", refreshAll);
+refs.refreshBtn.addEventListener("click", () => refreshAll({ showRequestBadge: true }));
 refs.manualAutofillBtn.addEventListener("click", autoFillManualFilters);
 refs.manualGenerateBtn.addEventListener("click", generateManualTickets);
 refs.hintBtn.addEventListener("click", requestHint);
@@ -1979,12 +1984,15 @@ systemColorScheme.addEventListener("change", () => {
 applyTheme("auto", true);
 applyRawDisplayMode(readRawDisplayMode(), false);
 
-refreshAll().catch((error) => {
+refreshAll({ showRequestBadge: false }).catch((error) => {
   writeLog(refs.actionResult, `Initialization failed: ${error.message}`);
 });
 
 setInterval(() => {
-  Promise.all([loadSessions(), loadLlmRuntimeStatus({ quiet: true })]).catch((error) => {
+  Promise.all([
+    loadSessions({ showRequestBadge: false }),
+    loadLlmRuntimeStatus({ quiet: true, showRequestBadge: false }),
+  ]).catch((error) => {
     writeLog(refs.actionResult, `Auto-refresh failed: ${error.message}`);
   });
 }, 15000);
