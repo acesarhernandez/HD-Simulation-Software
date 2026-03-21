@@ -25,6 +25,7 @@ const systemColorScheme = window.matchMedia("(prefers-color-scheme: dark)");
 const refs = {
   healthBadge: document.getElementById("healthBadge"),
   requestStatusBadge: document.getElementById("requestStatusBadge"),
+  headerEngineBadge: document.getElementById("headerEngineBadge"),
   versionBadge: document.getElementById("versionBadge"),
   themeLauncher: document.getElementById("themeLauncher"),
   themePanel: document.getElementById("themePanel"),
@@ -97,13 +98,19 @@ function updateRequestStatus() {
 
   if (state.pendingRequests > 0) {
     refs.requestStatusBadge.textContent =
-      state.pendingRequests === 1 ? "Working..." : `Working (${state.pendingRequests})`;
+      state.pendingRequests === 1 ? "Requests Working..." : `Requests Working (${state.pendingRequests})`;
     refs.requestStatusBadge.className = "badge warn";
     return;
   }
 
-  refs.requestStatusBadge.textContent = "Idle";
+  refs.requestStatusBadge.textContent = "Requests Idle";
   refs.requestStatusBadge.className = "badge badge-muted";
+}
+
+function renderHeaderEngineBadge(engineText, badgeKind) {
+  if (!refs.headerEngineBadge) return;
+  refs.headerEngineBadge.textContent = engineText;
+  refs.headerEngineBadge.className = `badge ${badgeKind}`;
 }
 
 async function api(path, options = {}) {
@@ -816,13 +823,22 @@ function renderLlmRuntimeStatus(data, leadSummary = "") {
       }
       refs.llmHostBadge.textContent = controllerText;
       refs.llmHostBadge.className = `badge ${controllerKind}`;
+      renderHeaderEngineBadge(controllerText, controllerKind);
     } else if (data.llm_host_endpoint_host) {
-      refs.llmHostBadge.textContent = hostReachable ? "Engine Online" : engineWaking ? "Engine Waking" : "Engine Offline";
-      refs.llmHostBadge.className = `badge ${hostReachable ? "ok" : engineWaking ? "warn" : "fail"}`;
+      const hostText = hostReachable ? "Engine Online" : engineWaking ? "Engine Waking" : "Engine Offline";
+      const hostKind = hostReachable ? "ok" : engineWaking ? "warn" : "fail";
+      refs.llmHostBadge.textContent = hostText;
+      refs.llmHostBadge.className = `badge ${hostKind}`;
+      renderHeaderEngineBadge(hostText, hostKind);
     } else {
       refs.llmHostBadge.textContent = "Engine Unknown";
       refs.llmHostBadge.className = "badge warn";
+      renderHeaderEngineBadge("Engine Unknown", "warn");
     }
+  } else {
+    const fallbackText = hostReachable ? "Engine Online" : engineWaking ? "Engine Waking" : "Engine Unknown";
+    const fallbackKind = hostReachable ? "ok" : engineWaking ? "warn" : "warn";
+    renderHeaderEngineBadge(fallbackText, fallbackKind);
   }
   refs.wakeEngineBtn.disabled = !wakeReady;
   refs.wakeEngineBtn.style.opacity = wakeReady ? "1" : "0.65";
@@ -895,6 +911,7 @@ async function loadLlmRuntimeStatus({ quiet = false } = {}) {
       refs.llmHostBadge.textContent = "Engine Unknown";
       refs.llmHostBadge.className = "badge warn";
     }
+    renderHeaderEngineBadge("Engine Unknown", "warn");
     refs.wakeEngineBtn.disabled = true;
     refs.wakeEngineBtn.style.opacity = "0.65";
     writeLog(refs.llmStatusResult, `LLM runtime status failed: ${error.message}`);
