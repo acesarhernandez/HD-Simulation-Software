@@ -8,6 +8,95 @@ import httpx
 from helpdesk_sim.domain.models import HintLevel
 from helpdesk_sim.services.engine_control_client import EngineReadinessCoordinator
 
+_INTENT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "account_status": ("account", "enabled", "disabled", "lockout", "locked", "status"),
+    "password_status": ("password", "expired", "mfa", "2fa", "reset", "sign in", "login", "log in"),
+    "license_assignment": ("license", "licensed", "bundle", "subscription", "entitlement"),
+    "group_membership": ("group", "membership", "role", "permission", "access group"),
+    "mailbox_access": ("mailbox", "outlook", "email", "shared mailbox"),
+    "network_access": ("vpn", "network", "internet", "wifi", "disconnect"),
+}
+
+_CRITICAL_CLUE_KEYS: set[str] = {
+    "username",
+    "error",
+    "permission",
+    "account",
+    "mfa",
+    "sync",
+    "version",
+    "trace",
+    "attachment",
+    "scope_segment",
+    "wifi",
+}
+
+_MINOR_CLUE_KEYS: set[str] = {
+    "restart",
+    "history",
+    "timing",
+    "checklist",
+    "scope",
+}
+
+_CLUE_INTENT_ALIASES: dict[str, tuple[str, ...]] = {
+    "username": ("account_status", "password_status"),
+    "error": ("password_status", "mailbox_access", "network_access"),
+    "mfa": ("password_status",),
+    "scope": ("account_status", "network_access"),
+    "permission": ("group_membership", "account_status"),
+    "account": ("account_status",),
+    "restart": ("network_access", "mailbox_access"),
+    "sync": ("account_status", "license_assignment"),
+    "version": ("network_access",),
+    "wifi": ("network_access",),
+    "trace": ("mailbox_access",),
+    "attachment": ("mailbox_access",),
+    "scope_segment": ("network_access",),
+}
+
+
+def _extract_intents(agent_lower: str) -> set[str]:
+    intents: set[str] = set()
+    for intent, keywords in _INTENT_KEYWORDS.items():
+        if any(keyword in agent_lower for keyword in keywords):
+            intents.add(intent)
+    return intents
+
+
+def _is_critical_clue_key(key: str) -> bool:
+    normalized = key.strip().lower()
+    if normalized in _CRITICAL_CLUE_KEYS:
+        return True
+    if normalized in _MINOR_CLUE_KEYS:
+        return False
+    # Unknown clue keys default to critical so they are not leaked unprompted.
+    return True
+
+
+def _clue_matches_intents(clue_key: str, intents: set[str]) -> bool:
+    aliases = _CLUE_INTENT_ALIASES.get(clue_key.lower(), ())
+    return any(alias in intents for alias in aliases)
+
+
+def _coerce_reveal_state(hidden_truth: dict[str, object]) -> dict[str, object]:
+    raw = hidden_truth.get("clue_reveal_state")
+    state = raw if isinstance(raw, dict) else {}
+    revealed_raw = state.get("revealed_keys")
+    revealed_keys = []
+    if isinstance(revealed_raw, list):
+        for item in revealed_raw:
+            text = str(item).strip()
+            if text:
+                revealed_keys.append(text)
+
+    return {
+        "revealed_keys": revealed_keys,
+        "agent_turn_count": int(state.get("agent_turn_count") or 0),
+        "stuck_turn_count": int(state.get("stuck_turn_count") or 0),
+        "last_revealed_key": str(state.get("last_revealed_key") or "").strip() or None,
+    }
+
 
 class ResponseEngine(Protocol):
     def generate_reply(
@@ -36,21 +125,103 @@ class RuleBasedResponseEngine:
         self.generated_reply_count += 1
         agent_lower = agent_message.lower()
         clue_map = hidden_truth.get("clue_map", {})
-        if isinstance(clue_map, dict):
-            for key, response in clue_map.items():
-                if self._question_matches_key(agent_lower, str(key).lower()):
-                    return str(response)
+        state = _coerce_reveal_state(hidden_truth)
+        state["agent_turn_count"] = int(state.get("agent_turn_count") or 0) + 1
+
+        reveal = self._select_clue_for_reply(agent_lower, hidden_truth, clue_map, state)
+        if reveal is not None:
+            key, response = reveal
+            revealed_keys = list(state.get("revealed_keys") or [])
+            if key not in revealed_keys:
+                revealed_keys.append(key)
+            state["revealed_keys"] = revealed_keys
+            state["stuck_turn_count"] = 0
+            state["last_revealed_key"] = key
+            hidden_truth["clue_reveal_state"] = state
+            return response
 
         contextual = self._contextual_reply(agent_lower, hidden_truth)
         if contextual:
+            state["stuck_turn_count"] = int(state.get("stuck_turn_count") or 0) + 1
+            hidden_truth["clue_reveal_state"] = state
             return contextual
 
         if "screenshot" in agent_lower:
+            state["stuck_turn_count"] = int(state.get("stuck_turn_count") or 0) + 1
+            hidden_truth["clue_reveal_state"] = state
             return "I can send one in a few minutes, but right now I can only describe what I see."
         if "error" in agent_lower:
+            state["stuck_turn_count"] = int(state.get("stuck_turn_count") or 0) + 1
+            hidden_truth["clue_reveal_state"] = state
             return "The message says access denied and it started this morning."
 
+        state["stuck_turn_count"] = int(state.get("stuck_turn_count") or 0) + 1
+        hidden_truth["clue_reveal_state"] = state
         return str(hidden_truth.get("default_follow_up", self.fallback_message))
+
+    def _select_clue_for_reply(
+        self,
+        agent_lower: str,
+        hidden_truth: dict[str, object],
+        clue_map: object,
+        state: dict[str, object],
+    ) -> tuple[str, str] | None:
+        if not isinstance(clue_map, dict):
+            return None
+
+        revealed = {str(item).strip() for item in list(state.get("revealed_keys") or []) if str(item).strip()}
+        available: list[tuple[str, str]] = [
+            (str(key), str(value))
+            for key, value in clue_map.items()
+            if str(key).strip() and str(key).strip() not in revealed
+        ]
+        if not available:
+            return None
+
+        asks_detail = any(
+            token in agent_lower
+            for token in (
+                "clarify",
+                "more detail",
+                "details",
+                "what do you need",
+                "can you share more",
+                "tell me more",
+            )
+        )
+        intents = _extract_intents(agent_lower)
+        hint_used = int(hidden_truth.get("hint_penalty_total") or 0) > 0
+        stuck_turn_count = int(state.get("stuck_turn_count") or 0)
+        agent_turn_count = int(state.get("agent_turn_count") or 0)
+        fallback_triggered = hint_used or stuck_turn_count >= 2 or agent_turn_count >= 4
+
+        direct_matches: list[tuple[str, str]] = []
+        intent_matches: list[tuple[str, str]] = []
+        minor_natural: list[tuple[str, str]] = []
+        critical_unrevealed: list[tuple[str, str]] = []
+
+        for key, response in available:
+            is_critical = _is_critical_clue_key(key)
+            if is_critical:
+                critical_unrevealed.append((key, response))
+            if self._question_matches_key(agent_lower, key.lower()):
+                direct_matches.append((key, response))
+                continue
+            if intents and _clue_matches_intents(key, intents):
+                intent_matches.append((key, response))
+                continue
+            if not is_critical and asks_detail:
+                minor_natural.append((key, response))
+
+        if direct_matches:
+            return direct_matches[0]
+        if intent_matches:
+            return intent_matches[0]
+        if minor_natural:
+            return minor_natural[0]
+        if fallback_triggered and critical_unrevealed:
+            return critical_unrevealed[0]
+        return None
 
     @staticmethod
     def _question_matches_key(agent_lower: str, clue_key: str) -> bool:
@@ -85,11 +256,10 @@ class RuleBasedResponseEngine:
         asks_signin = any(token in agent_lower for token in ["sign in", "login", "log in"])
         asks_detail = any(token in agent_lower for token in ["clarify", "more detail", "details", "what do you need"])
 
-        if ticket_type == "password_reset" and (asks_where or asks_signin or asks_detail):
-            return (
-                "I am trying to sign in to my Windows workstation at the office. "
-                "It says my password has expired."
-            )
+        if ticket_type == "password_reset" and (asks_where or asks_signin):
+            return "I am trying to sign in to my Windows workstation at the office."
+        if ticket_type == "password_reset" and asks_detail:
+            return "Sign-in is blocked this morning and I can share specific details as you ask."
 
         if ticket_type == "access_request" and asks_detail:
             return "I can sign in, but I still cannot access the feature I mentioned in the ticket."
@@ -228,11 +398,9 @@ class OllamaResponseEngine:
         ticket_type = str(hidden_truth.get("ticket_type", "general")).strip() or "general"
         customer_problem = str(hidden_truth.get("customer_problem", "")).strip()
         default_follow_up = str(hidden_truth.get("default_follow_up", "")).strip()
-        clue_map = hidden_truth.get("clue_map", {})
         clue_lines: list[str] = []
-        if isinstance(clue_map, dict):
-            for key, value in clue_map.items():
-                clue_lines.append(f"- {key}: {value}")
+        for clue in OllamaResponseEngine._collect_visible_clues_for_prompt(agent_message, hidden_truth):
+            clue_lines.append(f"- {clue}")
 
         interaction_lines: list[str] = []
         for row in recent_interactions or []:
@@ -271,6 +439,28 @@ class OllamaResponseEngine:
             if RuleBasedResponseEngine._question_matches_key(lowered, clue_key):
                 relevant.append(f"{key}: {value}")
         return relevant[:4]
+
+    @staticmethod
+    def _collect_visible_clues_for_prompt(agent_message: str, hidden_truth: dict[str, object]) -> list[str]:
+        clue_map = hidden_truth.get("clue_map", {})
+        if not isinstance(clue_map, dict):
+            return []
+
+        state = _coerce_reveal_state(hidden_truth)
+        revealed = {
+            str(item).strip()
+            for item in list(state.get("revealed_keys") or [])
+            if str(item).strip()
+        }
+        lowered = agent_message.lower()
+        visible: list[str] = []
+        for key, value in clue_map.items():
+            clue_key = str(key).strip()
+            if not clue_key:
+                continue
+            if clue_key in revealed or RuleBasedResponseEngine._question_matches_key(lowered, clue_key.lower()):
+                visible.append(f"{clue_key}: {value}")
+        return visible[:6]
 
     @staticmethod
     def _response_needs_fallback(agent_message: str, text: str) -> bool:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 
 from helpdesk_sim.adapters.gateway import ZammadGateway
@@ -61,6 +62,7 @@ class PollerService:
                     row.model_dump(mode="json")
                     for row in self.repository.list_interactions(ticket.id)[-6:]
                 ]
+                hidden_truth_before = json.loads(json.dumps(ticket.hidden_truth))
 
                 user_reply = self.response_engine.generate_reply(
                     agent_message=article.body,
@@ -76,6 +78,7 @@ class PollerService:
                     )
                     replies_sent += 1
                 except Exception as exc:  # pragma: no cover - network failure path
+                    ticket.hidden_truth = hidden_truth_before
                     logger.exception("Failed to post customer reply for ticket %s: %s", ticket.id, exc)
                     continue
 
@@ -85,6 +88,11 @@ class PollerService:
                     body=user_reply,
                     metadata={"event": "simulated_reply", "article_id": article.id},
                 )
+                if ticket.hidden_truth != hidden_truth_before:
+                    self.repository.update_ticket_hidden_truth(
+                        ticket_id=ticket.id,
+                        hidden_truth=ticket.hidden_truth,
+                    )
 
             if max_article_id > ticket.last_seen_article_id:
                 self.repository.update_ticket_last_seen_article_id(ticket.id, max_article_id)

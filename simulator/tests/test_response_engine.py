@@ -31,7 +31,71 @@ def test_rule_engine_password_reset_clarification() -> None:
         hidden_truth,
     )
     assert "Windows workstation" in reply
-    assert "password has expired" in reply
+    assert "password has expired" not in reply
+
+
+def test_rule_engine_withholds_critical_clues_without_direct_inquiry() -> None:
+    engine = RuleBasedResponseEngine()
+    hidden_truth = {
+        "ticket_type": "general",
+        "clue_map": {
+            "username": "My username is m.brooks",
+            "error": "The message says password expired.",
+        },
+        "default_follow_up": "I can share more details if you tell me what to check next.",
+    }
+
+    reply = engine.generate_reply(
+        "Can you clarify a little?",
+        hidden_truth,
+    )
+
+    state = hidden_truth.get("clue_reveal_state", {})
+    assert reply == "I can share more details if you tell me what to check next."
+    assert "m.brooks" not in reply
+    assert "password expired" not in reply
+    assert state.get("revealed_keys") == []
+
+
+def test_rule_engine_reveals_directly_asked_clue_and_tracks_state() -> None:
+    engine = RuleBasedResponseEngine()
+    hidden_truth = {
+        "clue_map": {
+            "username": "My username is m.brooks",
+            "error": "The message says password expired.",
+        }
+    }
+
+    reply = engine.generate_reply(
+        "Which user is impacted?",
+        hidden_truth,
+    )
+
+    state = hidden_truth.get("clue_reveal_state", {})
+    assert "m.brooks" in reply
+    assert state.get("revealed_keys") == ["username"]
+    assert state.get("stuck_turn_count") == 0
+
+
+def test_rule_engine_fallback_reveals_critical_clue_when_agent_is_stuck() -> None:
+    engine = RuleBasedResponseEngine()
+    hidden_truth = {
+        "ticket_type": "general",
+        "clue_map": {
+            "error": "The message says password expired.",
+        },
+        "default_follow_up": "I can share more details if you tell me what to check next.",
+    }
+
+    first = engine.generate_reply("Can you clarify a little?", hidden_truth)
+    second = engine.generate_reply("Can you clarify a little?", hidden_truth)
+    third = engine.generate_reply("Can you clarify a little?", hidden_truth)
+
+    state = hidden_truth.get("clue_reveal_state", {})
+    assert first == "I can share more details if you tell me what to check next."
+    assert second == "I can share more details if you tell me what to check next."
+    assert "password expired" in third
+    assert state.get("revealed_keys") == ["error"]
 
 
 def test_ollama_engine_falls_back_to_rule_based_on_error(monkeypatch) -> None:
