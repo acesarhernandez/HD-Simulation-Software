@@ -900,6 +900,7 @@ async function waitForEngineStatusAfterWake() {
 async function loadLlmRuntimeStatus({ quiet = false } = {}) {
   if (!quiet) {
     setBusy(refs.llmStatusRefreshBtn, true);
+    renderHeaderEngineBadge("Engine Checking...", "badge-muted");
   }
   try {
     const data = await api("/v1/runtime/response-engine", { method: "GET", headers: {} });
